@@ -1,0 +1,5 @@
+{
+  "name": "금연 도우미",
+  "description": "연초와 궐련형 담배 피우는 횟수와 비용을 기록하고 통계를 보여주는 앱",
+  "requestFramePermissions": []
+}
