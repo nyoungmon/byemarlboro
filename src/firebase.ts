@@ -12,8 +12,17 @@ export const googleProvider = new GoogleAuthProvider();
 export const signInWithGoogle = async () => {
   try {
     await signInWithPopup(auth, googleProvider);
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error signing in with Google", error);
+    if (error.code === 'auth/unauthorized-domain') {
+      alert("보안 정책: 현재 Vercel 주소가 Firebase에 등록되지 않았습니다.\n\nFirebase 콘솔(Authentication -> Settings -> Authorized domains)에 Vercel 주소를 추가해주세요.");
+    } else if (error.code === 'auth/popup-blocked') {
+      alert("팝업이 차단되었습니다. 브라우저 설정에서 팝업 차단을 해제해주세요.");
+    } else if (error.code === 'auth/popup-closed-by-user') {
+      // 사용자가 팝업을 닫은 경우 무시
+    } else {
+      alert(`로그인 중 오류가 발생했습니다: ${error.message}`);
+    }
   }
 };
 

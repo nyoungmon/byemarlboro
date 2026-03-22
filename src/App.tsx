@@ -321,7 +321,7 @@ export default function App() {
       <main className="flex-1 overflow-y-auto pb-20">
         {activeTab === 'dashboard' && <Dashboard logs={logs} addSmoke={addSmoke} addPurchase={addPurchase} deleteLog={deleteLog} />}
         {activeTab === 'stats' && <Stats logs={logs} />}
-        {activeTab === 'settings' && <SettingsView settings={settings} onUpdateSettings={updateSettings} logs={logs} onImportData={handleImportData} />}
+        {activeTab === 'settings' && <SettingsView settings={settings} onUpdateSettings={updateSettings} logs={logs} />}
       </main>
 
       <nav className="bg-white border-t border-zinc-100 flex justify-around p-3 absolute bottom-0 w-full">
