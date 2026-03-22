@@ -199,6 +199,16 @@ export default function App() {
     }
   };
 
+  const updateLog = async (id: string, updates: Partial<SmokeLog>) => {
+    if (!user) return;
+    try {
+      const logRef = doc(db, `users/${user.uid}/logs/${id}`);
+      await setDoc(logRef, updates, { merge: true });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `users/${user.uid}/logs/${id}`);
+    }
+  };
+
   const deleteLog = async (id: string) => {
     if (!user) return;
     try {
@@ -217,42 +227,6 @@ export default function App() {
       });
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, `users/${user.uid}/settings/default`);
-    }
-  };
-
-  const handleImportData = async (importedSettings: Settings, importedLogs: SmokeLog[]) => {
-    if (!user) return;
-    setIsMigrating(true);
-    try {
-      const batch = writeBatch(db);
-      
-      const settingsRef = doc(db, `users/${user.uid}/settings/default`);
-      batch.set(settingsRef, {
-        userId: user.uid,
-        traditionalCostPerPack: importedSettings.traditionalCostPerPack || 4500,
-        traditionalSticksPerPack: importedSettings.traditionalSticksPerPack || 20,
-        electronicCostPerPack: importedSettings.electronicCostPerPack || 4800,
-        electronicSticksPerPack: importedSettings.electronicSticksPerPack || 20,
-      });
-
-      importedLogs.forEach(log => {
-        const logRef = doc(collection(db, `users/${user.uid}/logs`));
-        batch.set(logRef, {
-          userId: user.uid,
-          type: log.type,
-          action: log.action || 'smoke',
-          timestamp: log.timestamp,
-          cost: log.cost || 0,
-          tag: log.tag || null,
-        });
-      });
-
-      await batch.commit();
-    } catch (error) {
-      console.error("Import failed", error);
-      alert("데이터 복원에 실패했습니다.");
-    } finally {
-      setIsMigrating(false);
     }
   };
 
@@ -319,9 +293,9 @@ export default function App() {
       </header>
 
       <main className="flex-1 overflow-y-auto pb-20">
-        {activeTab === 'dashboard' && <Dashboard logs={logs} addSmoke={addSmoke} addPurchase={addPurchase} deleteLog={deleteLog} />}
-        {activeTab === 'stats' && <Stats logs={logs} />}
-        {activeTab === 'settings' && <SettingsView settings={settings} onUpdateSettings={updateSettings} logs={logs} />}
+        {activeTab === 'dashboard' && <Dashboard logs={logs} addSmoke={addSmoke} addPurchase={addPurchase} deleteLog={deleteLog} updateLog={updateLog} />}
+        {activeTab === 'stats' && <Stats logs={logs} addSmoke={addSmoke} addPurchase={addPurchase} deleteLog={deleteLog} updateLog={updateLog} />}
+        {activeTab === 'settings' && <SettingsView settings={settings} onUpdateSettings={updateSettings} />}
       </main>
 
       <nav className="bg-white border-t border-zinc-100 flex justify-around p-3 absolute bottom-0 w-full">

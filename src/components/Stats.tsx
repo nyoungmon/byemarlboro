@@ -1,21 +1,78 @@
 import React, { useMemo, useState } from 'react';
-import { SmokeLog } from '../types';
+import { SmokeLog, SmokeType } from '../types';
 import { format, subDays, isSameDay, startOfDay, eachDayOfInterval, eachMonthOfInterval, isSameMonth, startOfMonth, endOfMonth, startOfWeek, endOfWeek, addMonths, subMonths } from 'date-fns';
 import { ko } from 'date-fns/locale';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line } from 'recharts';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Cigarette, BatteryCharging, Trash2, ShoppingCart, X, PlusCircle, Pencil } from 'lucide-react';
 import { getKSTDate } from '../utils';
 
 interface StatsProps {
   logs: SmokeLog[];
+  addSmoke: (type: SmokeType, tag?: string, timestamp?: number) => void;
+  addPurchase: (type: SmokeType, timestamp?: number) => void;
+  deleteLog: (id: string) => void;
+  updateLog: (id: string, updates: Partial<SmokeLog>) => void;
 }
 
-export function Stats({ logs }: StatsProps) {
+export function Stats({ logs, addSmoke, addPurchase, deleteLog, updateLog }: StatsProps) {
   const [viewMode, setViewMode] = useState<'all' | '7days' | 'month'>('all');
   const [summaryMonth, setSummaryMonth] = useState(startOfMonth(getKSTDate()));
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [manualModal, setManualModal] = useState<{ isOpen: boolean; editId: string | null }>({ isOpen: false, editId: null });
+  const [manualTime, setManualTime] = useState('12:00');
+  const [manualType, setManualType] = useState<SmokeType>('traditional');
+  const [manualAction, setManualAction] = useState<'smoke' | 'purchase'>('smoke');
+  const [manualTag, setManualTag] = useState('');
 
   const prevSummaryMonth = () => setSummaryMonth(subMonths(summaryMonth, 1));
   const nextSummaryMonth = () => setSummaryMonth(addMonths(summaryMonth, 1));
+
+  const openManualModal = (editLog?: SmokeLog) => {
+    if (editLog) {
+      const logDate = getKSTDate(editLog.timestamp);
+      setManualTime(format(logDate, 'HH:mm'));
+      setManualType(editLog.type);
+      setManualAction(editLog.action || 'smoke');
+      setManualTag(editLog.tag || '');
+      setManualModal({ isOpen: true, editId: editLog.id });
+    } else {
+      setManualTime('12:00');
+      setManualType('traditional');
+      setManualAction('smoke');
+      setManualTag('');
+      setManualModal({ isOpen: true, editId: null });
+    }
+  };
+
+  const handleManualSubmit = () => {
+    if (!selectedDate) return;
+    const dateStr = format(selectedDate, 'yyyy-MM-dd');
+    const timestamp = new Date(`${dateStr}T${manualTime}`).getTime();
+    
+    if (manualModal.editId) {
+      updateLog(manualModal.editId, {
+        type: manualType,
+        action: manualAction,
+        timestamp,
+        tag: manualAction === 'smoke' ? (manualTag || undefined) : undefined,
+      });
+    } else {
+      if (manualAction === 'smoke') {
+        addSmoke(manualType, manualTag || undefined, timestamp);
+      } else {
+        addPurchase(manualType, timestamp);
+      }
+    }
+    setManualModal({ isOpen: false, editId: null });
+    setManualTag('');
+  };
+
+  const selectedDayLogs = useMemo(() => {
+    if (!selectedDate) return [];
+    return logs
+      .filter(log => isSameDay(getKSTDate(log.timestamp), selectedDate))
+      .sort((a, b) => b.timestamp - a.timestamp);
+  }, [logs, selectedDate]);
 
   const summaryLogs = useMemo(() => {
     if (viewMode === 'all') return logs;
@@ -303,7 +360,8 @@ export function Stats({ logs }: StatsProps) {
                 return (
                   <div 
                     key={day.toString()} 
-                    className={`min-h-[64px] p-1 border border-zinc-50 rounded-lg flex flex-col items-center ${isCurrentMonth ? 'bg-white' : 'bg-zinc-50 opacity-40'}`}
+                    onClick={() => setSelectedDate(day)}
+                    className={`min-h-[64px] p-1 border border-zinc-50 rounded-lg flex flex-col items-center cursor-pointer hover:border-indigo-200 transition-colors ${isCurrentMonth ? 'bg-white' : 'bg-zinc-50 opacity-40'}`}
                   >
                     <span className={`text-xs mb-1 font-medium ${isTodayKST ? 'bg-indigo-500 text-white w-5 h-5 flex items-center justify-center rounded-full' : 'text-zinc-600'}`}>
                       {format(day, 'd')}
@@ -377,6 +435,186 @@ export function Stats({ logs }: StatsProps) {
           )}
         </div>
       </div>
+
+      {/* Day Detail Modal */}
+      {selectedDate && !manualModal.isOpen && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl w-full max-w-md shadow-xl overflow-hidden max-h-[80vh] flex flex-col">
+            <div className="p-4 border-b border-zinc-100 flex justify-between items-center bg-white sticky top-0 z-10">
+              <h3 className="font-bold text-zinc-800 text-lg">
+                {format(selectedDate, 'yyyy년 M월 d일')} 기록
+              </h3>
+              <button onClick={() => setSelectedDate(null)} className="text-zinc-400 hover:text-zinc-600">
+                <X size={20} />
+              </button>
+            </div>
+            
+            <div className="p-4 overflow-y-auto flex-1">
+              {selectedDayLogs.length === 0 ? (
+                <div className="text-center py-8 text-zinc-400 bg-zinc-50 rounded-2xl border border-zinc-100 border-dashed">
+                  이 날의 기록이 없습니다.
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {selectedDayLogs.map(log => {
+                    const isPurchase = log.action === 'purchase';
+                    const isTraditional = log.type === 'traditional';
+                    const title = isTraditional ? '말보루' : '테리아';
+                    const displayTitle = isPurchase ? `${title} 구입` : title;
+                    
+                    return (
+                      <div key={log.id} className="bg-white p-3 rounded-xl shadow-sm border border-zinc-100 flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className={`p-2 rounded-lg ${isTraditional ? 'bg-amber-100 text-amber-600' : 'bg-emerald-100 text-emerald-600'}`}>
+                            {isPurchase ? <ShoppingCart size={18} /> : (isTraditional ? <Cigarette size={18} /> : <BatteryCharging size={18} />)}
+                          </div>
+                          <div>
+                            <div className="font-medium text-zinc-800 flex items-center gap-2 text-sm">
+                              {displayTitle}
+                              {log.tag && (
+                                <span className="text-[10px] bg-indigo-50 text-indigo-600 px-1.5 py-0.5 rounded-md font-bold">
+                                  {log.tag}
+                                </span>
+                              )}
+                            </div>
+                            <div className="text-xs text-zinc-500">
+                              {format(getKSTDate(log.timestamp), 'HH:mm')}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {log.cost > 0 && (
+                            <span className="font-medium text-zinc-600 mr-2 text-sm">{Math.round(log.cost).toLocaleString()}원</span>
+                          )}
+                          <button 
+                            onClick={() => openManualModal(log)} 
+                            className="text-zinc-300 hover:text-indigo-500 transition-colors p-1"
+                            title="기록 수정"
+                          >
+                            <Pencil size={16} />
+                          </button>
+                          <button 
+                            onClick={() => deleteLog(log.id)} 
+                            className="text-zinc-300 hover:text-red-500 transition-colors p-1"
+                            title="기록 삭제"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            <div className="p-4 border-t border-zinc-100 bg-zinc-50">
+              <button 
+                onClick={() => openManualModal()}
+                className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-xl transition-colors flex items-center justify-center gap-2"
+              >
+                <PlusCircle size={18} />
+                이 날짜에 기록 추가
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Manual Log Modal */}
+      {manualModal.isOpen && selectedDate && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl w-full max-w-sm shadow-xl overflow-hidden">
+            <div className="p-4 border-b border-zinc-100 flex justify-between items-center">
+              <h3 className="font-bold text-zinc-800">
+                {format(selectedDate, 'M월 d일')} - {manualModal.editId ? '기록 수정' : '기록 추가'}
+              </h3>
+              <button onClick={() => setManualModal({ isOpen: false, editId: null })} className="text-zinc-400 hover:text-zinc-600">
+                <X size={20} />
+              </button>
+            </div>
+            <div className="p-4 sm:p-5 space-y-4">
+              <div>
+                <label className="block text-xs font-medium text-zinc-500 mb-1">시간</label>
+                <div className="w-full bg-zinc-50 border border-zinc-200 rounded-lg overflow-hidden focus-within:ring-2 focus-within:ring-indigo-500 focus-within:border-indigo-500 transition-all">
+                  <input 
+                    type="time" 
+                    value={manualTime}
+                    onChange={(e) => setManualTime(e.target.value)}
+                    className="block w-full min-w-0 bg-transparent px-3 py-2 text-[16px] sm:text-sm outline-none border-none appearance-none m-0 box-border"
+                  />
+                </div>
+                <div className="flex gap-1 mt-1.5 w-full">
+                  <button onClick={() => setManualTime('09:00')} className="flex-1 bg-zinc-100 hover:bg-zinc-200 text-zinc-600 text-[10px] py-1 rounded transition-colors">아침</button>
+                  <button onClick={() => setManualTime('13:00')} className="flex-1 bg-zinc-100 hover:bg-zinc-200 text-zinc-600 text-[10px] py-1 rounded transition-colors">점심</button>
+                  <button onClick={() => setManualTime('19:00')} className="flex-1 bg-zinc-100 hover:bg-zinc-200 text-zinc-600 text-[10px] py-1 rounded transition-colors">저녁</button>
+                  <button onClick={() => setManualTime('22:00')} className="flex-1 bg-zinc-100 hover:bg-zinc-200 text-zinc-600 text-[10px] py-1 rounded transition-colors">밤</button>
+                </div>
+              </div>
+              
+              <div>
+                <label className="block text-xs font-medium text-zinc-500 mb-1">종류</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button 
+                    onClick={() => setManualType('traditional')}
+                    className={`py-2 rounded-lg text-sm font-bold transition-colors ${manualType === 'traditional' ? 'bg-amber-100 text-amber-700 border border-amber-200' : 'bg-zinc-50 text-zinc-500 border border-zinc-200'}`}
+                  >
+                    말보루
+                  </button>
+                  <button 
+                    onClick={() => setManualType('electronic')}
+                    className={`py-2 rounded-lg text-sm font-bold transition-colors ${manualType === 'electronic' ? 'bg-emerald-100 text-emerald-700 border border-emerald-200' : 'bg-zinc-50 text-zinc-500 border border-zinc-200'}`}
+                  >
+                    테리아
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-zinc-500 mb-1">기록 유형</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button 
+                    onClick={() => setManualAction('smoke')}
+                    className={`py-2 rounded-lg text-sm font-bold transition-colors ${manualAction === 'smoke' ? 'bg-indigo-100 text-indigo-700 border border-indigo-200' : 'bg-zinc-50 text-zinc-500 border border-zinc-200'}`}
+                  >
+                    흡연
+                  </button>
+                  <button 
+                    onClick={() => setManualAction('purchase')}
+                    className={`py-2 rounded-lg text-sm font-bold transition-colors ${manualAction === 'purchase' ? 'bg-indigo-100 text-indigo-700 border border-indigo-200' : 'bg-zinc-50 text-zinc-500 border border-zinc-200'}`}
+                  >
+                    구입
+                  </button>
+                </div>
+              </div>
+
+              {manualAction === 'smoke' && (
+                <div>
+                  <label className="block text-xs font-medium text-zinc-500 mb-1">상황 태그 (선택)</label>
+                  <div className="flex flex-wrap gap-2">
+                    {['식후땡', '기상 후', '음주', '코 타임'].map(tag => (
+                      <button
+                        key={tag}
+                        onClick={() => setManualTag(manualTag === tag ? '' : tag)}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${manualTag === tag ? 'bg-indigo-500 text-white' : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200'}`}
+                      >
+                        {tag}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <button
+                onClick={handleManualSubmit}
+                className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-xl mt-2 transition-colors"
+              >
+                {manualModal.editId ? '수정 완료' : '기록 추가하기'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

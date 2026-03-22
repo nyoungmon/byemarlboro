@@ -1,24 +1,18 @@
 import React, { useState } from 'react';
-import { Cigarette, BatteryCharging, Trash2, ShoppingCart, X, PlusCircle } from 'lucide-react';
+import { Cigarette, BatteryCharging, Trash2, ShoppingCart, X } from 'lucide-react';
 import { SmokeLog, SmokeType } from '../types';
 import { isTodayKST, getKSTDate } from '../utils';
-import { format } from 'date-fns';
 
 interface DashboardProps {
   logs: SmokeLog[];
   addSmoke: (type: SmokeType, tag?: string, timestamp?: number) => void;
   addPurchase: (type: SmokeType, timestamp?: number) => void;
   deleteLog: (id: string) => void;
+  updateLog: (id: string, updates: Partial<SmokeLog>) => void;
 }
 
-export function Dashboard({ logs, addSmoke, addPurchase, deleteLog }: DashboardProps) {
+export function Dashboard({ logs, addSmoke, addPurchase, deleteLog, updateLog }: DashboardProps) {
   const [tagModal, setTagModal] = useState<{ isOpen: boolean; type: SmokeType | null }>({ isOpen: false, type: null });
-  const [manualModal, setManualModal] = useState(false);
-  const [manualDate, setManualDate] = useState(format(getKSTDate(), 'yyyy-MM-dd'));
-  const [manualTime, setManualTime] = useState(format(getKSTDate(), 'HH:mm'));
-  const [manualType, setManualType] = useState<SmokeType>('traditional');
-  const [manualAction, setManualAction] = useState<'smoke' | 'purchase'>('smoke');
-  const [manualTag, setManualTag] = useState('');
 
   const handleSmokeClick = (type: SmokeType) => {
     setTagModal({ isOpen: true, type });
@@ -49,15 +43,17 @@ export function Dashboard({ logs, addSmoke, addPurchase, deleteLog }: DashboardP
         count: 0,
         cost: 0,
         ids: [],
-        lastTimestamp: 0
+        lastTimestamp: 0,
+        logs: []
       };
     }
     acc[key].count += 1;
     acc[key].cost += log.cost;
     acc[key].ids.push(log.id);
+    acc[key].logs.push(log);
     acc[key].lastTimestamp = Math.max(acc[key].lastTimestamp, log.timestamp);
     return acc;
-  }, {} as Record<string, { type: SmokeType, action: string, tag: string, count: number, cost: number, ids: string[], lastTimestamp: number }>)).sort((a, b) => {
+  }, {} as Record<string, { type: SmokeType, action: string, tag: string, count: number, cost: number, ids: string[], lastTimestamp: number, logs: SmokeLog[] }>)).sort((a, b) => {
     return b.lastTimestamp - a.lastTimestamp;
   });
 
@@ -89,13 +85,6 @@ export function Dashboard({ logs, addSmoke, addPurchase, deleteLog }: DashboardP
       <div className="space-y-4">
         <div className="flex items-center justify-between px-1">
           <h3 className="text-sm font-bold text-zinc-500">흡연 기록</h3>
-          <button 
-            onClick={() => setManualModal(true)}
-            className="text-xs font-medium text-indigo-600 hover:text-indigo-700 flex items-center gap-1 bg-indigo-50 px-2 py-1 rounded-md"
-          >
-            <PlusCircle size={14} />
-            과거 기록 추가
-          </button>
         </div>
         <div className="grid grid-cols-2 gap-4">
           <button
@@ -169,9 +158,9 @@ export function Dashboard({ logs, addSmoke, addPurchase, deleteLog }: DashboardP
                       </div>
                     </div>
                   </div>
-                  <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-2">
                     {group.cost > 0 && (
-                      <span className="font-medium text-zinc-600">{Math.round(group.cost).toLocaleString()}원</span>
+                      <span className="font-medium text-zinc-600 mr-2">{Math.round(group.cost).toLocaleString()}원</span>
                     )}
                     <button 
                       onClick={() => deleteLog(group.ids[group.ids.length - 1])} 
@@ -211,121 +200,6 @@ export function Dashboard({ logs, addSmoke, addPurchase, deleteLog }: DashboardP
                   {tag}
                 </button>
               ))}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Manual Log Modal */}
-      {manualModal && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
-          <div className="bg-white rounded-2xl w-full max-w-sm shadow-xl overflow-hidden">
-            <div className="p-4 border-b border-zinc-100 flex justify-between items-center">
-              <h3 className="font-bold text-zinc-800">과거 기록 추가</h3>
-              <button onClick={() => setManualModal(false)} className="text-zinc-400 hover:text-zinc-600">
-                <X size={20} />
-              </button>
-            </div>
-            <div className="p-4 sm:p-5 space-y-4">
-              <div className="flex flex-col sm:flex-row gap-3 w-full">
-                <div className="flex-1 w-full min-w-0">
-                  <label className="block text-xs font-medium text-zinc-500 mb-1">날짜</label>
-                  <div className="w-full bg-zinc-50 border border-zinc-200 rounded-lg overflow-hidden focus-within:ring-2 focus-within:ring-indigo-500 focus-within:border-indigo-500 transition-all">
-                    <input 
-                      type="date" 
-                      value={manualDate}
-                      onChange={(e) => setManualDate(e.target.value)}
-                      className="block w-full min-w-0 bg-transparent px-3 py-2 text-[16px] sm:text-sm outline-none border-none appearance-none m-0 box-border"
-                    />
-                  </div>
-                </div>
-                <div className="flex-1 w-full min-w-0">
-                  <label className="block text-xs font-medium text-zinc-500 mb-1">시간</label>
-                  <div className="w-full bg-zinc-50 border border-zinc-200 rounded-lg overflow-hidden focus-within:ring-2 focus-within:ring-indigo-500 focus-within:border-indigo-500 transition-all">
-                    <input 
-                      type="time" 
-                      value={manualTime}
-                      onChange={(e) => setManualTime(e.target.value)}
-                      className="block w-full min-w-0 bg-transparent px-3 py-2 text-[16px] sm:text-sm outline-none border-none appearance-none m-0 box-border"
-                    />
-                  </div>
-                  <div className="flex gap-1 mt-1.5 w-full">
-                    <button onClick={() => setManualTime('09:00')} className="flex-1 bg-zinc-100 hover:bg-zinc-200 text-zinc-600 text-[10px] py-1 rounded transition-colors">아침</button>
-                    <button onClick={() => setManualTime('13:00')} className="flex-1 bg-zinc-100 hover:bg-zinc-200 text-zinc-600 text-[10px] py-1 rounded transition-colors">점심</button>
-                    <button onClick={() => setManualTime('19:00')} className="flex-1 bg-zinc-100 hover:bg-zinc-200 text-zinc-600 text-[10px] py-1 rounded transition-colors">저녁</button>
-                    <button onClick={() => setManualTime('22:00')} className="flex-1 bg-zinc-100 hover:bg-zinc-200 text-zinc-600 text-[10px] py-1 rounded transition-colors">밤</button>
-                  </div>
-                </div>
-              </div>
-              
-              <div>
-                <label className="block text-xs font-medium text-zinc-500 mb-1">종류</label>
-                <div className="grid grid-cols-2 gap-2">
-                  <button 
-                    onClick={() => setManualType('traditional')}
-                    className={`py-2 rounded-lg text-sm font-bold transition-colors ${manualType === 'traditional' ? 'bg-amber-100 text-amber-700 border border-amber-200' : 'bg-zinc-50 text-zinc-500 border border-zinc-200'}`}
-                  >
-                    말보루
-                  </button>
-                  <button 
-                    onClick={() => setManualType('electronic')}
-                    className={`py-2 rounded-lg text-sm font-bold transition-colors ${manualType === 'electronic' ? 'bg-emerald-100 text-emerald-700 border border-emerald-200' : 'bg-zinc-50 text-zinc-500 border border-zinc-200'}`}
-                  >
-                    테리아
-                  </button>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-zinc-500 mb-1">기록 유형</label>
-                <div className="grid grid-cols-2 gap-2">
-                  <button 
-                    onClick={() => setManualAction('smoke')}
-                    className={`py-2 rounded-lg text-sm font-bold transition-colors ${manualAction === 'smoke' ? 'bg-indigo-100 text-indigo-700 border border-indigo-200' : 'bg-zinc-50 text-zinc-500 border border-zinc-200'}`}
-                  >
-                    흡연
-                  </button>
-                  <button 
-                    onClick={() => setManualAction('purchase')}
-                    className={`py-2 rounded-lg text-sm font-bold transition-colors ${manualAction === 'purchase' ? 'bg-indigo-100 text-indigo-700 border border-indigo-200' : 'bg-zinc-50 text-zinc-500 border border-zinc-200'}`}
-                  >
-                    구입
-                  </button>
-                </div>
-              </div>
-
-              {manualAction === 'smoke' && (
-                <div>
-                  <label className="block text-xs font-medium text-zinc-500 mb-1">상황 태그 (선택)</label>
-                  <div className="flex flex-wrap gap-2">
-                    {['식후땡', '기상 후', '음주', '코 타임'].map(tag => (
-                      <button
-                        key={tag}
-                        onClick={() => setManualTag(manualTag === tag ? '' : tag)}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${manualTag === tag ? 'bg-indigo-500 text-white' : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200'}`}
-                      >
-                        {tag}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              <button
-                onClick={() => {
-                  const timestamp = new Date(`${manualDate}T${manualTime}`).getTime();
-                  if (manualAction === 'smoke') {
-                    addSmoke(manualType, manualTag || undefined, timestamp);
-                  } else {
-                    addPurchase(manualType, timestamp);
-                  }
-                  setManualModal(false);
-                  setManualTag('');
-                }}
-                className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-xl mt-2 transition-colors"
-              >
-                기록 추가하기
-              </button>
             </div>
           </div>
         </div>

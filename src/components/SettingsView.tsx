@@ -4,10 +4,9 @@ import { Settings, SmokeLog } from '../types';
 interface SettingsViewProps {
   settings: Settings;
   onUpdateSettings: (settings: Settings) => void;
-  logs: SmokeLog[];
 }
 
-export function SettingsView({ settings, onUpdateSettings, logs }: SettingsViewProps) {
+export function SettingsView({ settings, onUpdateSettings }: SettingsViewProps) {
   const [localSettings, setLocalSettings] = useState<Settings>(settings);
 
   useEffect(() => {
