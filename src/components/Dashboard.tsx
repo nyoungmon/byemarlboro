@@ -227,7 +227,7 @@ export function Dashboard({ logs, addSmoke, addPurchase, deleteLog }: DashboardP
               </button>
             </div>
             <div className="p-5 space-y-4">
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-medium text-zinc-500 mb-1">날짜</label>
                   <input 
