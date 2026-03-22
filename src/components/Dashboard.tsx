@@ -226,7 +226,7 @@ export function Dashboard({ logs, addSmoke, addPurchase, deleteLog }: DashboardP
                 <X size={20} />
               </button>
             </div>
-            <div className="p-5 space-y-4">
+            <div className="p-4 sm:p-5 space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="min-w-0">
                   <label className="block text-xs font-medium text-zinc-500 mb-1">날짜</label>
@@ -234,7 +234,7 @@ export function Dashboard({ logs, addSmoke, addPurchase, deleteLog }: DashboardP
                     type="date" 
                     value={manualDate}
                     onChange={(e) => setManualDate(e.target.value)}
-                    className="block w-full max-w-full m-0 box-border bg-zinc-50 border border-zinc-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    className="block w-full min-w-0 m-0 box-border bg-zinc-50 border border-zinc-200 rounded-lg px-2 sm:px-3 py-2 text-[16px] sm:text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   />
                 </div>
                 <div className="min-w-0">
@@ -243,7 +243,7 @@ export function Dashboard({ logs, addSmoke, addPurchase, deleteLog }: DashboardP
                     type="time" 
                     value={manualTime}
                     onChange={(e) => setManualTime(e.target.value)}
-                    className="block w-full max-w-full m-0 box-border bg-zinc-50 border border-zinc-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    className="block w-full min-w-0 m-0 box-border bg-zinc-50 border border-zinc-200 rounded-lg px-2 sm:px-3 py-2 text-[16px] sm:text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   />
                   <div className="flex gap-1 mt-1.5">
                     <button onClick={() => setManualTime('09:00')} className="flex-1 bg-zinc-100 hover:bg-zinc-200 text-zinc-600 text-[10px] py-1 rounded transition-colors">아침</button>
