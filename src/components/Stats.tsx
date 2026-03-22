@@ -2,9 +2,11 @@ import React, { useMemo, useState } from 'react';
 import { SmokeLog, SmokeType } from '../types';
 import { format, subDays, isSameDay, startOfDay, eachDayOfInterval, eachMonthOfInterval, isSameMonth, startOfMonth, endOfMonth, startOfWeek, endOfWeek, addMonths, subMonths } from 'date-fns';
 import { ko } from 'date-fns/locale';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line } from 'recharts';
-import { ChevronLeft, ChevronRight, Cigarette, BatteryCharging, Trash2, ShoppingCart, X, PlusCircle, Pencil } from 'lucide-react';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell } from 'recharts';
+import { ChevronLeft, ChevronRight, Cigarette, BatteryCharging, Trash2, CreditCard, X, PlusCircle, Pencil } from 'lucide-react';
 import { getKSTDate } from '../utils';
+
+const COLORS = ['#6366f1', '#8b5cf6', '#ec4899', '#f43f5e', '#f97316', '#eab308', '#10b981', '#14b8a6', '#0ea5e9'];
 
 interface StatsProps {
   logs: SmokeLog[];
@@ -27,7 +29,7 @@ export function Stats({ logs, addSmoke, addPurchase, deleteLog, updateLog }: Sta
   const prevSummaryMonth = () => setSummaryMonth(subMonths(summaryMonth, 1));
   const nextSummaryMonth = () => setSummaryMonth(addMonths(summaryMonth, 1));
 
-  const openManualModal = (editLog?: SmokeLog) => {
+  const openManualModal = (editLog?: SmokeLog, defaultType: SmokeType = 'traditional', defaultAction: 'smoke' | 'purchase' = 'smoke') => {
     if (editLog) {
       const logDate = getKSTDate(editLog.timestamp);
       setManualTime(format(logDate, 'HH:mm'));
@@ -37,8 +39,8 @@ export function Stats({ logs, addSmoke, addPurchase, deleteLog, updateLog }: Sta
       setManualModal({ isOpen: true, editId: editLog.id });
     } else {
       setManualTime('12:00');
-      setManualType('traditional');
-      setManualAction('smoke');
+      setManualType(defaultType);
+      setManualAction(defaultAction);
       setManualTag('');
       setManualModal({ isOpen: true, editId: null });
     }
@@ -252,6 +254,58 @@ export function Stats({ logs, addSmoke, addPurchase, deleteLog, updateLog }: Sta
         </div>
       </div>
 
+      {/* Pattern Analysis */}
+      {summaryLogs.length > 0 && (
+        <div className="flex flex-col gap-4">
+          <div className="bg-white p-5 rounded-2xl shadow-sm border border-zinc-100">
+            <h3 className="font-bold text-zinc-800 mb-6">상황별 흡연 패턴</h3>
+            <div className="h-64 w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={tagStats}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={60}
+                    outerRadius={80}
+                    paddingAngle={5}
+                    dataKey="value"
+                  >
+                    {tagStats.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip 
+                    formatter={(value: number) => [`${value}개비`, '']}
+                    contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                  />
+                  <Legend verticalAlign="bottom" height={36} iconType="circle" wrapperStyle={{ fontSize: '12px' }} />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          <div className="bg-white p-5 rounded-2xl shadow-sm border border-zinc-100">
+            <h3 className="font-bold text-zinc-800 mb-6">시간대별 흡연 패턴</h3>
+            <div className="h-64 w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={timeStats} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f4f4f5" />
+                  <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#a1a1aa' }} dy={10} />
+                  <YAxis allowDecimals={false} axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#a1a1aa' }} />
+                  <Tooltip 
+                    cursor={{ fill: '#f4f4f5' }}
+                    formatter={(value: number) => [`${value}개비`, '흡연량']}
+                    contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                  />
+                  <Bar dataKey="value" name="흡연량" fill="#6366f1" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* 7 Days Charts */}
       {viewMode === '7days' && (
         <>
@@ -282,7 +336,7 @@ export function Stats({ logs, addSmoke, addPurchase, deleteLog, updateLog }: Sta
                 <LineChart data={last7Days} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f4f4f5" />
                   <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#a1a1aa' }} dy={10} />
-                  <YAxis domain={[0, 'auto']} axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#a1a1aa' }} tickFormatter={(val) => val === 0 ? '0' : val.toLocaleString()} />
+                  <YAxis domain={[(dataMin: number) => Math.min(dataMin, 4500), (dataMax: number) => Math.max(dataMax, 70000)]} axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#a1a1aa' }} tickFormatter={(val) => val === 0 ? '0' : val.toLocaleString()} />
                   <Tooltip 
                     formatter={(value: number, name: string) => [`${value.toLocaleString()}원`, name]}
                     contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
@@ -327,7 +381,7 @@ export function Stats({ logs, addSmoke, addPurchase, deleteLog, updateLog }: Sta
                 <LineChart data={monthlyChartData} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f4f4f5" />
                   <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#a1a1aa' }} dy={10} />
-                  <YAxis domain={[0, 'auto']} axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#a1a1aa' }} tickFormatter={(val) => val === 0 ? '0' : val.toLocaleString()} />
+                  <YAxis domain={[(dataMin: number) => Math.min(dataMin, 27000), (dataMax: number) => Math.max(dataMax, 90000)]} axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#a1a1aa' }} tickFormatter={(val) => val === 0 ? '0' : val.toLocaleString()} />
                   <Tooltip 
                     formatter={(value: number, name: string) => [`${value.toLocaleString()}원`, name]}
                     contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
@@ -466,7 +520,7 @@ export function Stats({ logs, addSmoke, addPurchase, deleteLog, updateLog }: Sta
                       <div key={log.id} className="bg-white p-3 rounded-xl shadow-sm border border-zinc-100 flex items-center justify-between">
                         <div className="flex items-center gap-3">
                           <div className={`p-2 rounded-lg ${isTraditional ? 'bg-amber-100 text-amber-600' : 'bg-emerald-100 text-emerald-600'}`}>
-                            {isPurchase ? <ShoppingCart size={18} /> : (isTraditional ? <Cigarette size={18} /> : <BatteryCharging size={18} />)}
+                            {isPurchase ? <CreditCard size={18} /> : (isTraditional ? <Cigarette size={18} /> : <BatteryCharging size={18} />)}
                           </div>
                           <div>
                             <div className="font-medium text-zinc-800 flex items-center gap-2 text-sm">
@@ -478,7 +532,8 @@ export function Stats({ logs, addSmoke, addPurchase, deleteLog, updateLog }: Sta
                               )}
                             </div>
                             <div className="text-xs text-zinc-500">
-                              {format(getKSTDate(log.timestamp), 'HH:mm')}
+                              {!isPurchase && format(getKSTDate(log.timestamp), 'HH:mm')}
+                              {isPurchase && '구입'}
                             </div>
                           </div>
                         </div>
@@ -508,13 +563,20 @@ export function Stats({ logs, addSmoke, addPurchase, deleteLog, updateLog }: Sta
               )}
             </div>
 
-            <div className="p-4 border-t border-zinc-100 bg-zinc-50">
+            <div className="p-4 border-t border-zinc-100 bg-zinc-50 flex gap-2">
               <button 
-                onClick={() => openManualModal()}
-                className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-xl transition-colors flex items-center justify-center gap-2"
+                onClick={() => openManualModal(undefined, 'traditional', 'smoke')}
+                className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-xl transition-colors flex items-center justify-center gap-2 text-sm shadow-sm"
               >
                 <PlusCircle size={18} />
-                이 날짜에 기록 추가
+                흡연 기록 추가
+              </button>
+              <button 
+                onClick={() => openManualModal(undefined, 'traditional', 'purchase')}
+                className="flex-1 bg-zinc-800 hover:bg-zinc-900 text-white font-bold py-3 rounded-xl transition-colors flex items-center justify-center gap-2 text-sm shadow-sm"
+              >
+                <CreditCard size={18} />
+                구입 기록 추가
               </button>
             </div>
           </div>
@@ -527,30 +589,34 @@ export function Stats({ logs, addSmoke, addPurchase, deleteLog, updateLog }: Sta
           <div className="bg-white rounded-2xl w-full max-w-sm shadow-xl overflow-hidden">
             <div className="p-4 border-b border-zinc-100 flex justify-between items-center">
               <h3 className="font-bold text-zinc-800">
-                {format(selectedDate, 'M월 d일')} - {manualModal.editId ? '기록 수정' : '기록 추가'}
+                {format(selectedDate, 'M월 d일')} - {manualModal.editId 
+                  ? (manualAction === 'smoke' ? '흡연 기록 수정' : '구입 기록 수정') 
+                  : (manualAction === 'smoke' ? '흡연 기록 추가' : '구입 기록 추가')}
               </h3>
               <button onClick={() => setManualModal({ isOpen: false, editId: null })} className="text-zinc-400 hover:text-zinc-600">
                 <X size={20} />
               </button>
             </div>
             <div className="p-4 sm:p-5 space-y-4">
-              <div>
-                <label className="block text-xs font-medium text-zinc-500 mb-1">시간</label>
-                <div className="w-full bg-zinc-50 border border-zinc-200 rounded-lg overflow-hidden focus-within:ring-2 focus-within:ring-indigo-500 focus-within:border-indigo-500 transition-all">
-                  <input 
-                    type="time" 
-                    value={manualTime}
-                    onChange={(e) => setManualTime(e.target.value)}
-                    className="block w-full min-w-0 bg-transparent px-3 py-2 text-[16px] sm:text-sm outline-none border-none appearance-none m-0 box-border"
-                  />
+              {manualAction === 'smoke' && (
+                <div>
+                  <label className="block text-xs font-medium text-zinc-500 mb-1">시간</label>
+                  <div className="w-full bg-zinc-50 border border-zinc-200 rounded-lg overflow-hidden focus-within:ring-2 focus-within:ring-indigo-500 focus-within:border-indigo-500 transition-all">
+                    <input 
+                      type="time" 
+                      value={manualTime}
+                      onChange={(e) => setManualTime(e.target.value)}
+                      className="block w-full min-w-0 bg-transparent px-3 py-2 text-[16px] sm:text-sm outline-none border-none appearance-none m-0 box-border"
+                    />
+                  </div>
+                  <div className="flex gap-1 mt-1.5 w-full">
+                    <button onClick={() => setManualTime('09:00')} className="flex-1 bg-zinc-100 hover:bg-zinc-200 text-zinc-600 text-[10px] py-1 rounded transition-colors">아침</button>
+                    <button onClick={() => setManualTime('13:00')} className="flex-1 bg-zinc-100 hover:bg-zinc-200 text-zinc-600 text-[10px] py-1 rounded transition-colors">점심</button>
+                    <button onClick={() => setManualTime('19:00')} className="flex-1 bg-zinc-100 hover:bg-zinc-200 text-zinc-600 text-[10px] py-1 rounded transition-colors">저녁</button>
+                    <button onClick={() => setManualTime('22:00')} className="flex-1 bg-zinc-100 hover:bg-zinc-200 text-zinc-600 text-[10px] py-1 rounded transition-colors">밤</button>
+                  </div>
                 </div>
-                <div className="flex gap-1 mt-1.5 w-full">
-                  <button onClick={() => setManualTime('09:00')} className="flex-1 bg-zinc-100 hover:bg-zinc-200 text-zinc-600 text-[10px] py-1 rounded transition-colors">아침</button>
-                  <button onClick={() => setManualTime('13:00')} className="flex-1 bg-zinc-100 hover:bg-zinc-200 text-zinc-600 text-[10px] py-1 rounded transition-colors">점심</button>
-                  <button onClick={() => setManualTime('19:00')} className="flex-1 bg-zinc-100 hover:bg-zinc-200 text-zinc-600 text-[10px] py-1 rounded transition-colors">저녁</button>
-                  <button onClick={() => setManualTime('22:00')} className="flex-1 bg-zinc-100 hover:bg-zinc-200 text-zinc-600 text-[10px] py-1 rounded transition-colors">밤</button>
-                </div>
-              </div>
+              )}
               
               <div>
                 <label className="block text-xs font-medium text-zinc-500 mb-1">종류</label>
@@ -566,24 +632,6 @@ export function Stats({ logs, addSmoke, addPurchase, deleteLog, updateLog }: Sta
                     className={`py-2 rounded-lg text-sm font-bold transition-colors ${manualType === 'electronic' ? 'bg-emerald-100 text-emerald-700 border border-emerald-200' : 'bg-zinc-50 text-zinc-500 border border-zinc-200'}`}
                   >
                     테리아
-                  </button>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-zinc-500 mb-1">기록 유형</label>
-                <div className="grid grid-cols-2 gap-2">
-                  <button 
-                    onClick={() => setManualAction('smoke')}
-                    className={`py-2 rounded-lg text-sm font-bold transition-colors ${manualAction === 'smoke' ? 'bg-indigo-100 text-indigo-700 border border-indigo-200' : 'bg-zinc-50 text-zinc-500 border border-zinc-200'}`}
-                  >
-                    흡연
-                  </button>
-                  <button 
-                    onClick={() => setManualAction('purchase')}
-                    className={`py-2 rounded-lg text-sm font-bold transition-colors ${manualAction === 'purchase' ? 'bg-indigo-100 text-indigo-700 border border-indigo-200' : 'bg-zinc-50 text-zinc-500 border border-zinc-200'}`}
-                  >
-                    구입
                   </button>
                 </div>
               </div>
@@ -607,9 +655,11 @@ export function Stats({ logs, addSmoke, addPurchase, deleteLog, updateLog }: Sta
 
               <button
                 onClick={handleManualSubmit}
-                className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-xl mt-2 transition-colors"
+                className={`w-full font-bold py-3 rounded-xl mt-2 transition-colors ${manualAction === 'smoke' ? 'bg-indigo-600 hover:bg-indigo-700 text-white' : 'bg-zinc-800 hover:bg-zinc-900 text-white'}`}
               >
-                {manualModal.editId ? '수정 완료' : '기록 추가하기'}
+                {manualModal.editId 
+                  ? (manualAction === 'smoke' ? '흡연 기록 수정하기' : '구입 기록 수정하기') 
+                  : (manualAction === 'smoke' ? '흡연 기록 추가하기' : '구입 기록 추가하기')}
               </button>
             </div>
           </div>

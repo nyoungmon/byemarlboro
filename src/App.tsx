@@ -12,7 +12,7 @@ import { SmokeLog, Settings, SmokeType } from './types';
 import { getKSTDateString } from './utils';
 import { auth, db, signInWithGoogle, logOut, handleFirestoreError, OperationType } from './firebase';
 import { onAuthStateChanged, User } from 'firebase/auth';
-import { collection, doc, setDoc, deleteDoc, onSnapshot, query, orderBy, writeBatch } from 'firebase/firestore';
+import { collection, doc, setDoc, deleteDoc, onSnapshot, query, orderBy, writeBatch, deleteField } from 'firebase/firestore';
 
 const defaultSettings: Settings = {
   traditionalCostPerPack: 4500,
@@ -115,36 +115,56 @@ export default function App() {
 
     setIsMigrating(true);
     try {
-      const batch = writeBatch(db);
+      const batches = [];
+      let currentBatch = writeBatch(db);
+      let operationCount = 0;
+
+      const commitCurrentBatch = () => {
+        batches.push(currentBatch.commit());
+        currentBatch = writeBatch(db);
+        operationCount = 0;
+      };
       
       if (localSettingsStr) {
         const localSettings = JSON.parse(localSettingsStr);
         const settingsRef = doc(db, `users/${userId}/settings/default`);
-        batch.set(settingsRef, {
+        currentBatch.set(settingsRef, {
           userId,
-          traditionalCostPerPack: localSettings.traditionalCostPerPack || 4500,
-          traditionalSticksPerPack: localSettings.traditionalSticksPerPack || 20,
-          electronicCostPerPack: localSettings.electronicCostPerPack || 4800,
-          electronicSticksPerPack: localSettings.electronicSticksPerPack || 20,
+          traditionalCostPerPack: Math.max(0, Number(localSettings.traditionalCostPerPack) || 4500),
+          traditionalSticksPerPack: Math.max(1, Number(localSettings.traditionalSticksPerPack) || 20),
+          electronicCostPerPack: Math.max(0, Number(localSettings.electronicCostPerPack) || 4800),
+          electronicSticksPerPack: Math.max(1, Number(localSettings.electronicSticksPerPack) || 20),
         });
+        operationCount++;
       }
 
       if (localLogsStr) {
         const localLogs: SmokeLog[] = JSON.parse(localLogsStr);
         localLogs.forEach(log => {
+          if (operationCount >= 490) {
+            commitCurrentBatch();
+          }
           const logRef = doc(collection(db, `users/${userId}/logs`));
-          batch.set(logRef, {
+          const logData: any = {
             userId,
-            type: log.type,
-            action: log.action || 'smoke',
-            timestamp: log.timestamp,
-            cost: log.cost || 0,
-            tag: log.tag || null,
-          });
+            type: log.type === 'electronic' ? 'electronic' : 'traditional',
+            action: log.action === 'purchase' ? 'purchase' : 'smoke',
+            timestamp: Number(log.timestamp) || Date.now(),
+            cost: Math.max(0, Number(log.cost) || 0),
+          };
+          if (log.tag && typeof log.tag === 'string') {
+            logData.tag = log.tag.substring(0, 100);
+          }
+          currentBatch.set(logRef, logData);
+          operationCount++;
         });
       }
 
-      await batch.commit();
+      if (operationCount > 0) {
+        batches.push(currentBatch.commit());
+      }
+      
+      await Promise.all(batches);
       
       localStorage.removeItem('smoke_logs');
       localStorage.removeItem('smoke_settings');
@@ -166,14 +186,17 @@ export default function App() {
     if (!user) return;
     try {
       const logRef = doc(collection(db, `users/${user.uid}/logs`));
-      await setDoc(logRef, {
+      const newLog: any = {
         userId: user.uid,
         type,
         action: 'smoke',
         timestamp: timestamp || Date.now(),
         cost: 0,
-        tag: tag || null,
-      });
+      };
+      if (tag) {
+        newLog.tag = tag;
+      }
+      await setDoc(logRef, newLog);
     } catch (error) {
       handleFirestoreError(error, OperationType.CREATE, `users/${user.uid}/logs`);
     }
@@ -203,7 +226,14 @@ export default function App() {
     if (!user) return;
     try {
       const logRef = doc(db, `users/${user.uid}/logs/${id}`);
-      await setDoc(logRef, updates, { merge: true });
+      const updateData: any = { ...updates };
+      
+      // If tag is explicitly set to undefined, delete it from Firestore
+      if ('tag' in updates && updates.tag === undefined) {
+        updateData.tag = deleteField();
+      }
+      
+      await setDoc(logRef, updateData, { merge: true });
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, `users/${user.uid}/logs/${id}`);
     }
