@@ -4,12 +4,15 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { Home, BarChart2, Settings as SettingsIcon } from 'lucide-react';
+import { Home, BarChart2, Settings as SettingsIcon, LogIn, LogOut, Cloud } from 'lucide-react';
 import { Dashboard } from './components/Dashboard';
 import { Stats } from './components/Stats';
 import { SettingsView } from './components/SettingsView';
 import { SmokeLog, Settings, SmokeType } from './types';
 import { getKSTDateString } from './utils';
+import { auth, db, signInWithGoogle, logOut, handleFirestoreError, OperationType } from './firebase';
+import { onAuthStateChanged, User } from 'firebase/auth';
+import { collection, doc, setDoc, deleteDoc, onSnapshot, query, orderBy, writeBatch } from 'firebase/firestore';
 
 const defaultSettings: Settings = {
   traditionalCostPerPack: 4500,
@@ -21,29 +24,136 @@ const defaultSettings: Settings = {
 export default function App() {
   const [activeTab, setActiveTab] = useState<'dashboard' | 'stats' | 'settings'>('dashboard');
   const [kstDate, setKstDate] = useState(getKSTDateString());
-  const [logs, setLogs] = useState<SmokeLog[]>(() => {
-    const saved = localStorage.getItem('smoke_logs');
-    return saved ? JSON.parse(saved) : [];
-  });
-  const [settings, setSettings] = useState<Settings>(() => {
-    const saved = localStorage.getItem('smoke_settings');
-    if (saved) {
-      const parsed = JSON.parse(saved);
-      if (parsed.electronicCostPerPack === 4500) {
-        parsed.electronicCostPerPack = 4800;
-      }
-      return parsed;
+  
+  const [user, setUser] = useState<User | null>(null);
+  const [isAuthReady, setIsAuthReady] = useState(false);
+  const [isMigrating, setIsMigrating] = useState(false);
+
+  const [logs, setLogs] = useState<SmokeLog[]>([]);
+  const [settings, setSettings] = useState<Settings>(defaultSettings);
+
+  // Auth Listener
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      setUser(currentUser);
+      setIsAuthReady(true);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  // Data Sync Listener
+  useEffect(() => {
+    if (!isAuthReady) return;
+    
+    if (!user) {
+      setLogs([]);
+      setSettings(defaultSettings);
+      return;
     }
-    return defaultSettings;
-  });
 
-  useEffect(() => {
-    localStorage.setItem('smoke_logs', JSON.stringify(logs));
-  }, [logs]);
+    const userId = user.uid;
 
-  useEffect(() => {
-    localStorage.setItem('smoke_settings', JSON.stringify(settings));
-  }, [settings]);
+    // Listen to Settings
+    const settingsRef = doc(db, `users/${userId}/settings/default`);
+    const unsubSettings = onSnapshot(settingsRef, (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data() as Settings;
+        setSettings({
+          traditionalCostPerPack: data.traditionalCostPerPack ?? 4500,
+          traditionalSticksPerPack: data.traditionalSticksPerPack ?? 20,
+          electronicCostPerPack: data.electronicCostPerPack ?? 4800,
+          electronicSticksPerPack: data.electronicSticksPerPack ?? 20,
+        });
+      } else {
+        setDoc(settingsRef, { ...defaultSettings, userId }).catch(e => handleFirestoreError(e, OperationType.WRITE, `users/${userId}/settings/default`));
+      }
+    }, (error) => {
+      handleFirestoreError(error, OperationType.GET, `users/${userId}/settings/default`);
+    });
+
+    // Listen to Logs
+    const logsRef = collection(db, `users/${userId}/logs`);
+    const q = query(logsRef, orderBy('timestamp', 'asc'));
+    const unsubLogs = onSnapshot(q, (snapshot) => {
+      const newLogs: SmokeLog[] = [];
+      snapshot.forEach((doc) => {
+        const data = doc.data();
+        newLogs.push({
+          id: doc.id,
+          type: data.type,
+          action: data.action,
+          timestamp: data.timestamp,
+          cost: data.cost,
+          tag: data.tag,
+        });
+      });
+      setLogs(newLogs);
+      
+      // Check for migration after first load
+      checkAndMigrateData(userId, newLogs);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, `users/${userId}/logs`);
+    });
+
+    return () => {
+      unsubSettings();
+      unsubLogs();
+    };
+  }, [user, isAuthReady]);
+
+  const checkAndMigrateData = async (userId: string, currentLogs: SmokeLog[]) => {
+    const localLogsStr = localStorage.getItem('smoke_logs');
+    const localSettingsStr = localStorage.getItem('smoke_settings');
+    
+    if (!localLogsStr && !localSettingsStr) return;
+    
+    if (currentLogs.length > 0) {
+      localStorage.removeItem('smoke_logs');
+      localStorage.removeItem('smoke_settings');
+      return;
+    }
+
+    setIsMigrating(true);
+    try {
+      const batch = writeBatch(db);
+      
+      if (localSettingsStr) {
+        const localSettings = JSON.parse(localSettingsStr);
+        const settingsRef = doc(db, `users/${userId}/settings/default`);
+        batch.set(settingsRef, {
+          userId,
+          traditionalCostPerPack: localSettings.traditionalCostPerPack || 4500,
+          traditionalSticksPerPack: localSettings.traditionalSticksPerPack || 20,
+          electronicCostPerPack: localSettings.electronicCostPerPack || 4800,
+          electronicSticksPerPack: localSettings.electronicSticksPerPack || 20,
+        });
+      }
+
+      if (localLogsStr) {
+        const localLogs: SmokeLog[] = JSON.parse(localLogsStr);
+        localLogs.forEach(log => {
+          const logRef = doc(collection(db, `users/${userId}/logs`));
+          batch.set(logRef, {
+            userId,
+            type: log.type,
+            action: log.action || 'smoke',
+            timestamp: log.timestamp,
+            cost: log.cost || 0,
+            tag: log.tag || null,
+          });
+        });
+      }
+
+      await batch.commit();
+      
+      localStorage.removeItem('smoke_logs');
+      localStorage.removeItem('smoke_settings');
+    } catch (error) {
+      console.error("Migration failed", error);
+    } finally {
+      setIsMigrating(false);
+    }
+  };
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -52,40 +162,145 @@ export default function App() {
     return () => clearInterval(timer);
   }, []);
 
-  const addSmoke = (type: SmokeType, tag?: string, timestamp?: number) => {
-    const newLog: SmokeLog = {
-      id: Date.now().toString() + Math.random().toString(36).substr(2, 5),
-      type,
-      action: 'smoke',
-      timestamp: timestamp || Date.now(),
-      cost: 0,
-      tag,
-    };
-    setLogs([...logs, newLog]);
+  const addSmoke = async (type: SmokeType, tag?: string, timestamp?: number) => {
+    if (!user) return;
+    try {
+      const logRef = doc(collection(db, `users/${user.uid}/logs`));
+      await setDoc(logRef, {
+        userId: user.uid,
+        type,
+        action: 'smoke',
+        timestamp: timestamp || Date.now(),
+        cost: 0,
+        tag: tag || null,
+      });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.CREATE, `users/${user.uid}/logs`);
+    }
   };
 
-  const addPurchase = (type: SmokeType, timestamp?: number) => {
+  const addPurchase = async (type: SmokeType, timestamp?: number) => {
+    if (!user) return;
     const cost = type === 'traditional' 
       ? settings.traditionalCostPerPack 
       : settings.electronicCostPerPack;
       
-    const newLog: SmokeLog = {
-      id: Date.now().toString() + Math.random().toString(36).substr(2, 5),
-      type,
-      action: 'purchase',
-      timestamp: timestamp || Date.now(),
-      cost,
-    };
-    setLogs([...logs, newLog]);
+    try {
+      const logRef = doc(collection(db, `users/${user.uid}/logs`));
+      await setDoc(logRef, {
+        userId: user.uid,
+        type,
+        action: 'purchase',
+        timestamp: timestamp || Date.now(),
+        cost,
+      });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.CREATE, `users/${user.uid}/logs`);
+    }
   };
 
-  const deleteLog = (id: string) => {
-    setLogs(logs.filter(log => log.id !== id));
+  const deleteLog = async (id: string) => {
+    if (!user) return;
+    try {
+      await deleteDoc(doc(db, `users/${user.uid}/logs/${id}`));
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, `users/${user.uid}/logs/${id}`);
+    }
   };
+
+  const updateSettings = async (newSettings: Settings) => {
+    if (!user) return;
+    try {
+      await setDoc(doc(db, `users/${user.uid}/settings/default`), {
+        ...newSettings,
+        userId: user.uid
+      });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `users/${user.uid}/settings/default`);
+    }
+  };
+
+  const handleImportData = async (importedSettings: Settings, importedLogs: SmokeLog[]) => {
+    if (!user) return;
+    setIsMigrating(true);
+    try {
+      const batch = writeBatch(db);
+      
+      const settingsRef = doc(db, `users/${user.uid}/settings/default`);
+      batch.set(settingsRef, {
+        userId: user.uid,
+        traditionalCostPerPack: importedSettings.traditionalCostPerPack || 4500,
+        traditionalSticksPerPack: importedSettings.traditionalSticksPerPack || 20,
+        electronicCostPerPack: importedSettings.electronicCostPerPack || 4800,
+        electronicSticksPerPack: importedSettings.electronicSticksPerPack || 20,
+      });
+
+      importedLogs.forEach(log => {
+        const logRef = doc(collection(db, `users/${user.uid}/logs`));
+        batch.set(logRef, {
+          userId: user.uid,
+          type: log.type,
+          action: log.action || 'smoke',
+          timestamp: log.timestamp,
+          cost: log.cost || 0,
+          tag: log.tag || null,
+        });
+      });
+
+      await batch.commit();
+    } catch (error) {
+      console.error("Import failed", error);
+      alert("데이터 복원에 실패했습니다.");
+    } finally {
+      setIsMigrating(false);
+    }
+  };
+
+  if (!isAuthReady) {
+    return (
+      <div className="min-h-screen bg-zinc-50 flex items-center justify-center">
+        <div className="animate-pulse flex flex-col items-center">
+          <Cloud className="text-indigo-400 mb-4" size={48} />
+          <p className="text-zinc-500 font-medium">로딩 중...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-zinc-50 flex flex-col items-center justify-center p-6">
+        <div className="bg-white p-8 rounded-2xl shadow-xl max-w-sm w-full text-center">
+          <div className="w-16 h-16 bg-indigo-100 rounded-2xl flex items-center justify-center mx-auto mb-6">
+            <Cloud className="text-indigo-600" size={32} />
+          </div>
+          <h1 className="text-2xl font-bold text-zinc-800 mb-2">클라우드 동기화</h1>
+          <p className="text-zinc-500 text-sm mb-8">
+            로그인하면 기기를 변경해도<br/>기록이 안전하게 영구 보존됩니다.
+          </p>
+          <button 
+            onClick={signInWithGoogle}
+            className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-4 rounded-xl transition-colors flex items-center justify-center gap-2"
+          >
+            <LogIn size={20} />
+            구글 계정으로 시작하기
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-zinc-50 flex flex-col max-w-md mx-auto shadow-xl relative">
-      <header className="bg-white px-6 py-4 border-b border-zinc-100 sticky top-0 z-10">
+      {isMigrating && (
+        <div className="absolute inset-0 bg-white/80 backdrop-blur-sm z-50 flex flex-col items-center justify-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mb-4"></div>
+          <p className="text-zinc-800 font-bold">데이터 동기화 중...</p>
+          <p className="text-zinc-500 text-sm mt-2">잠시만 기다려주세요</p>
+        </div>
+      )}
+      
+      <header className="bg-white px-6 py-4 border-b border-zinc-100 sticky top-0 z-10 flex justify-between items-center">
         <div className="flex flex-col">
           <h1 className="text-xl font-bold text-zinc-800">
             {activeTab === 'dashboard' && '금연 기록'}
@@ -96,12 +311,17 @@ export default function App() {
             <span className="text-sm text-zinc-500 font-medium mt-0.5">{kstDate}</span>
           )}
         </div>
+        {activeTab === 'settings' && (
+          <button onClick={logOut} className="text-zinc-400 hover:text-red-500 transition-colors" title="로그아웃">
+            <LogOut size={20} />
+          </button>
+        )}
       </header>
 
       <main className="flex-1 overflow-y-auto pb-20">
         {activeTab === 'dashboard' && <Dashboard logs={logs} addSmoke={addSmoke} addPurchase={addPurchase} deleteLog={deleteLog} />}
         {activeTab === 'stats' && <Stats logs={logs} />}
-        {activeTab === 'settings' && <SettingsView settings={settings} setSettings={setSettings} logs={logs} setLogs={setLogs} />}
+        {activeTab === 'settings' && <SettingsView settings={settings} onUpdateSettings={updateSettings} logs={logs} onImportData={handleImportData} />}
       </main>
 
       <nav className="bg-white border-t border-zinc-100 flex justify-around p-3 absolute bottom-0 w-full">

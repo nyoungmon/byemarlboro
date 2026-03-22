@@ -1,0 +1,86 @@
+{
+  "entities": {
+    "SmokeLog": {
+      "title": "SmokeLog",
+      "description": "A record of a smoking action or a purchase of cigarettes.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "The UID of the user who owns this log."
+        },
+        "type": {
+          "type": "string",
+          "enum": ["traditional", "electronic"],
+          "description": "The type of cigarette."
+        },
+        "action": {
+          "type": "string",
+          "enum": ["smoke", "purchase"],
+          "description": "The action performed."
+        },
+        "timestamp": {
+          "type": "number",
+          "description": "The timestamp of the action in milliseconds."
+        },
+        "cost": {
+          "type": "number",
+          "description": "The cost associated with the action (0 for smoke, >0 for purchase)."
+        },
+        "tag": {
+          "type": "string",
+          "description": "An optional tag or note for the log."
+        }
+      },
+      "required": ["userId", "type", "action", "timestamp", "cost"]
+    },
+    "UserSettings": {
+      "title": "UserSettings",
+      "description": "User preferences and settings for the app.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "The UID of the user who owns these settings."
+        },
+        "traditionalCostPerPack": {
+          "type": "number",
+          "description": "Cost per pack of traditional cigarettes."
+        },
+        "traditionalSticksPerPack": {
+          "type": "number",
+          "description": "Number of sticks per pack of traditional cigarettes."
+        },
+        "electronicCostPerPack": {
+          "type": "number",
+          "description": "Cost per pack of electronic cigarettes."
+        },
+        "electronicSticksPerPack": {
+          "type": "number",
+          "description": "Number of sticks per pack of electronic cigarettes."
+        }
+      },
+      "required": [
+        "userId",
+        "traditionalCostPerPack",
+        "traditionalSticksPerPack",
+        "electronicCostPerPack",
+        "electronicSticksPerPack"
+      ]
+    }
+  },
+  "firestore": {
+    "/users/{userId}/logs/{logId}": {
+      "schema": {
+        "$ref": "#/entities/SmokeLog"
+      },
+      "description": "Stores individual smoke and purchase logs for a user."
+    },
+    "/users/{userId}/settings/default": {
+      "schema": {
+        "$ref": "#/entities/UserSettings"
+      },
+      "description": "Stores the user's settings."
+    }
+  }
+}

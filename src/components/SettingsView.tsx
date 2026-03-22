@@ -1,23 +1,32 @@
-import React, { useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Settings, SmokeLog } from '../types';
 import { Download, Upload } from 'lucide-react';
 
 interface SettingsViewProps {
   settings: Settings;
-  setSettings: React.Dispatch<React.SetStateAction<Settings>>;
+  onUpdateSettings: (settings: Settings) => void;
   logs: SmokeLog[];
-  setLogs: React.Dispatch<React.SetStateAction<SmokeLog[]>>;
+  onImportData: (settings: Settings, logs: SmokeLog[]) => void;
 }
 
-export function SettingsView({ settings, setSettings, logs, setLogs }: SettingsViewProps) {
+export function SettingsView({ settings, onUpdateSettings, logs, onImportData }: SettingsViewProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [localSettings, setLocalSettings] = useState<Settings>(settings);
+
+  useEffect(() => {
+    setLocalSettings(settings);
+  }, [settings]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
-    setSettings(prev => ({
+    setLocalSettings(prev => ({
       ...prev,
       [name]: parseInt(value) || 0
     }));
+  };
+
+  const handleBlur = () => {
+    onUpdateSettings(localSettings);
   };
 
   const handleExport = () => {
@@ -47,8 +56,7 @@ export function SettingsView({ settings, setSettings, logs, setLogs }: SettingsV
         const parsed = JSON.parse(content);
         
         if (parsed.settings && parsed.logs) {
-          setSettings(parsed.settings);
-          setLogs(parsed.logs);
+          onImportData(parsed.settings, parsed.logs);
           alert('데이터가 성공적으로 복원되었습니다.');
         } else {
           alert('올바른 백업 파일 형식이 아닙니다.');
@@ -76,8 +84,9 @@ export function SettingsView({ settings, setSettings, logs, setLogs }: SettingsV
             <input 
               type="number" 
               name="traditionalCostPerPack"
-              value={settings.traditionalCostPerPack}
+              value={localSettings.traditionalCostPerPack}
               onChange={handleChange}
+              onBlur={handleBlur}
               className="w-full px-4 py-3 rounded-xl border border-zinc-200 focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none transition-all"
             />
           </div>
@@ -86,8 +95,9 @@ export function SettingsView({ settings, setSettings, logs, setLogs }: SettingsV
             <input 
               type="number" 
               name="traditionalSticksPerPack"
-              value={settings.traditionalSticksPerPack}
+              value={localSettings.traditionalSticksPerPack}
               onChange={handleChange}
+              onBlur={handleBlur}
               className="w-full px-4 py-3 rounded-xl border border-zinc-200 focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none transition-all"
             />
           </div>
@@ -104,8 +114,9 @@ export function SettingsView({ settings, setSettings, logs, setLogs }: SettingsV
             <input 
               type="number" 
               name="electronicCostPerPack"
-              value={settings.electronicCostPerPack}
+              value={localSettings.electronicCostPerPack}
               onChange={handleChange}
+              onBlur={handleBlur}
               className="w-full px-4 py-3 rounded-xl border border-zinc-200 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all"
             />
           </div>
@@ -114,8 +125,9 @@ export function SettingsView({ settings, setSettings, logs, setLogs }: SettingsV
             <input 
               type="number" 
               name="electronicSticksPerPack"
-              value={settings.electronicSticksPerPack}
+              value={localSettings.electronicSticksPerPack}
               onChange={handleChange}
+              onBlur={handleBlur}
               className="w-full px-4 py-3 rounded-xl border border-zinc-200 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all"
             />
           </div>
@@ -150,7 +162,7 @@ export function SettingsView({ settings, setSettings, logs, setLogs }: SettingsV
             className="hidden" 
           />
           <p className="text-xs text-zinc-500 text-center mt-2">
-            기기를 변경하거나 앱을 다시 설치할 때 데이터를 유지할 수 있습니다.
+            기존 백업 파일(.json)을 불러와 클라우드에 덮어쓸 수 있습니다.
           </p>
         </div>
       </div>

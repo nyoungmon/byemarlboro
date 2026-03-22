@@ -1,0 +1,115 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: users/{userId}/logs/{logId}
+    // Fields:
+    //   - userId: string (required, must match auth.uid)
+    //   - type: string (required, 'traditional' or 'electronic')
+    //   - action: string (required, 'smoke' or 'purchase')
+    //   - timestamp: number (required)
+    //   - cost: number (required)
+    //   - tag: string (optional, max length 50)
+    //
+    // Collection: users/{userId}/settings/default
+    // Fields:
+    //   - userId: string (required, must match auth.uid)
+    //   - traditionalCostPerPack: number (required, >= 0)
+    //   - traditionalSticksPerPack: number (required, > 0)
+    //   - electronicCostPerPack: number (required, >= 0)
+    //   - electronicSticksPerPack: number (required, > 0)
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function hasOnlyAllowedFields(allowedFields) {
+      return request.resource.data.keys().hasOnly(allowedFields);
+    }
+
+    function isValidStringLength(field, minLen, maxLen) {
+      return request.resource.data[field] is string &&
+             request.resource.data[field].size() >= minLen &&
+             request.resource.data[field].size() <= maxLen;
+    }
+
+    function isValidOptionalString(field, maxLen) {
+      return !('field' in request.resource.data) ||
+             (request.resource.data[field] is string &&
+              request.resource.data[field].size() <= maxLen);
+    }
+
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+
+    function isValidSmokeLog(userId) {
+      let data = request.resource.data;
+      let allowedFields = ['userId', 'type', 'action', 'timestamp', 'cost', 'tag'];
+      
+      return hasOnlyAllowedFields(allowedFields) &&
+             data.userId == userId &&
+             data.type in ['traditional', 'electronic'] &&
+             data.action in ['smoke', 'purchase'] &&
+             data.timestamp is number &&
+             data.cost is number && data.cost >= 0 &&
+             (!('tag' in data) || (data.tag is string && data.tag.size() <= 100));
+    }
+
+    function isValidUserSettings(userId) {
+      let data = request.resource.data;
+      let allowedFields = [
+        'userId', 
+        'traditionalCostPerPack', 
+        'traditionalSticksPerPack', 
+        'electronicCostPerPack', 
+        'electronicSticksPerPack'
+      ];
+      
+      return hasOnlyAllowedFields(allowedFields) &&
+             data.userId == userId &&
+             data.traditionalCostPerPack is number && data.traditionalCostPerPack >= 0 &&
+             data.traditionalSticksPerPack is number && data.traditionalSticksPerPack > 0 &&
+             data.electronicCostPerPack is number && data.electronicCostPerPack >= 0 &&
+             data.electronicSticksPerPack is number && data.electronicSticksPerPack > 0;
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /users/{userId} {
+      // Users can only access their own subcollections
+      allow read, write: if false; // No direct access to the user doc itself in this app
+
+      match /logs/{logId} {
+        allow read: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidSmokeLog(userId);
+        allow update: if isOwner(userId) && isValidSmokeLog(userId) && request.resource.data.userId == resource.data.userId;
+        allow delete: if isOwner(userId);
+      }
+
+      match /settings/{settingId} {
+        allow read: if isOwner(userId);
+        allow create: if isOwner(userId) && settingId == 'default' && isValidUserSettings(userId);
+        allow update: if isOwner(userId) && settingId == 'default' && isValidUserSettings(userId) && request.resource.data.userId == resource.data.userId;
+        allow delete: if isOwner(userId) && settingId == 'default';
+      }
+    }
+  }
+}
