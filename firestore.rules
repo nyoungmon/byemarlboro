@@ -15,6 +15,7 @@ service cloud.firestore {
     //   - timestamp: number (required)
     //   - cost: number (required)
     //   - tag: string (optional, max length 50)
+    //   - count: number (optional, default 1)
     //
     // Collection: users/{userId}/settings/default
     // Fields:
@@ -60,7 +61,7 @@ service cloud.firestore {
 
     function isValidSmokeLog(userId) {
       let data = request.resource.data;
-      let allowedFields = ['userId', 'type', 'action', 'timestamp', 'cost', 'tag'];
+      let allowedFields = ['userId', 'type', 'action', 'timestamp', 'cost', 'tag', 'count'];
       
       return hasOnlyAllowedFields(allowedFields) &&
              data.userId == userId &&
@@ -68,7 +69,8 @@ service cloud.firestore {
              data.action in ['smoke', 'purchase'] &&
              data.timestamp is number &&
              data.cost is number && data.cost >= 0 &&
-             (!('tag' in data) || (data.tag is string && data.tag.size() <= 100));
+             (!('tag' in data) || (data.tag is string && data.tag.size() <= 100)) &&
+             (!('count' in data) || (data.count is number && data.count > 0));
     }
 
     function isValidUserSettings(userId) {

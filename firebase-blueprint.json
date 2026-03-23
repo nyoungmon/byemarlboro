@@ -30,6 +30,10 @@
         "tag": {
           "type": "string",
           "description": "An optional tag or note for the log."
+        },
+        "count": {
+          "type": "number",
+          "description": "The number of items smoked or purchased. Defaults to 1."
         }
       },
       "required": ["userId", "type", "action", "timestamp", "cost"]
