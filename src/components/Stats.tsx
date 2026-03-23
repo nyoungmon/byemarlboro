@@ -52,7 +52,7 @@ export function Stats({ logs, addSmoke, addPurchase, deleteLog, updateLog }: Sta
   const handleManualSubmit = () => {
     if (!selectedDate) return;
     const dateStr = format(selectedDate, 'yyyy-MM-dd');
-    const timestamp = new Date(`${dateStr}T${manualTime}`).getTime();
+    const timestamp = new Date(`${dateStr}T${manualTime}:00+09:00`).getTime();
     
     if (manualModal.editId) {
       updateLog(manualModal.editId, {

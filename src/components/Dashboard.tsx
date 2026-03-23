@@ -43,7 +43,7 @@ export function Dashboard({ logs, addSmoke, addPurchase, deleteLog, updateLog }:
   };
 
   const handleManualSubmit = () => {
-    const timestamp = new Date(`${manualDate}T${manualTime}`).getTime();
+    const timestamp = new Date(`${manualDate}T${manualTime}:00+09:00`).getTime();
     
     if (manualModal.editId) {
       updateLog(manualModal.editId, {
