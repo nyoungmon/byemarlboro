@@ -8,6 +8,7 @@ export interface SmokeLog {
   timestamp: number;
   cost: number;
   tag?: string;
+  count: number;
 }
 
 export interface Settings {

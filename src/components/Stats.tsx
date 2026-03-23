@@ -6,12 +6,12 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Responsive
 import { ChevronLeft, ChevronRight, Cigarette, BatteryCharging, Trash2, CreditCard, X, PlusCircle, Pencil } from 'lucide-react';
 import { getKSTDate } from '../utils';
 
-const COLORS = ['#6366f1', '#8b5cf6', '#ec4899', '#f43f5e', '#f97316', '#eab308', '#10b981', '#14b8a6', '#0ea5e9'];
+const COLORS = ['#6366f1', '#8b5cf6', '#3b82f6', '#0ea5e9', '#4f46e5', '#7c3aed', '#2563eb', '#1d4ed8', '#1e40af'];
 
 interface StatsProps {
   logs: SmokeLog[];
-  addSmoke: (type: SmokeType, tag?: string, timestamp?: number) => void;
-  addPurchase: (type: SmokeType, timestamp?: number) => void;
+  addSmoke: (type: SmokeType, tag?: string, timestamp?: number, count?: number) => void;
+  addPurchase: (type: SmokeType, timestamp?: number, count?: number) => void;
   deleteLog: (id: string) => void;
   updateLog: (id: string, updates: Partial<SmokeLog>) => void;
 }
@@ -25,6 +25,7 @@ export function Stats({ logs, addSmoke, addPurchase, deleteLog, updateLog }: Sta
   const [manualType, setManualType] = useState<SmokeType>('traditional');
   const [manualAction, setManualAction] = useState<'smoke' | 'purchase'>('smoke');
   const [manualTag, setManualTag] = useState('');
+  const [manualCount, setManualCount] = useState(1);
 
   const prevSummaryMonth = () => setSummaryMonth(subMonths(summaryMonth, 1));
   const nextSummaryMonth = () => setSummaryMonth(addMonths(summaryMonth, 1));
@@ -36,12 +37,14 @@ export function Stats({ logs, addSmoke, addPurchase, deleteLog, updateLog }: Sta
       setManualType(editLog.type);
       setManualAction(editLog.action || 'smoke');
       setManualTag(editLog.tag || '');
+      setManualCount(editLog.count || 1);
       setManualModal({ isOpen: true, editId: editLog.id });
     } else {
       setManualTime('12:00');
       setManualType(defaultType);
       setManualAction(defaultAction);
       setManualTag('');
+      setManualCount(1);
       setManualModal({ isOpen: true, editId: null });
     }
   };
@@ -57,16 +60,18 @@ export function Stats({ logs, addSmoke, addPurchase, deleteLog, updateLog }: Sta
         action: manualAction,
         timestamp,
         tag: manualAction === 'smoke' ? (manualTag || undefined) : undefined,
+        count: manualCount,
       });
     } else {
       if (manualAction === 'smoke') {
-        addSmoke(manualType, manualTag || undefined, timestamp);
+        addSmoke(manualType, manualTag || undefined, timestamp, manualCount);
       } else {
-        addPurchase(manualType, timestamp);
+        addPurchase(manualType, timestamp, manualCount);
       }
     }
     setManualModal({ isOpen: false, editId: null });
     setManualTag('');
+    setManualCount(1);
   };
 
   const selectedDayLogs = useMemo(() => {
@@ -100,14 +105,14 @@ export function Stats({ logs, addSmoke, addPurchase, deleteLog, updateLog }: Sta
 
     return days.map(day => {
       const dayLogs = logs.filter(log => isSameDay(getKSTDate(log.timestamp), day));
-      const traditional = dayLogs.filter(l => l.type === 'traditional' && (!l.action || l.action === 'smoke')).length;
-      const electronic = dayLogs.filter(l => l.type === 'electronic' && (!l.action || l.action === 'smoke')).length;
+      const traditional = dayLogs.filter(l => l.type === 'traditional' && (!l.action || l.action === 'smoke')).reduce((sum, l) => sum + (l.count || 1), 0);
+      const electronic = dayLogs.filter(l => l.type === 'electronic' && (!l.action || l.action === 'smoke')).reduce((sum, l) => sum + (l.count || 1), 0);
       const traditionalCost = dayLogs.filter(l => l.type === 'traditional').reduce((sum, log) => sum + log.cost, 0);
       const electronicCost = dayLogs.filter(l => l.type === 'electronic').reduce((sum, log) => sum + log.cost, 0);
       const cost = traditionalCost + electronicCost;
 
       return {
-        date: format(day, 'MM/dd', { locale: ko }),
+        date: format(day, 'M/d', { locale: ko }),
         traditional,
         electronic,
         traditionalCost,
@@ -131,8 +136,8 @@ export function Stats({ logs, addSmoke, addPurchase, deleteLog, updateLog }: Sta
 
     return months.map(month => {
       const monthLogs = logs.filter(log => isSameMonth(getKSTDate(log.timestamp), month));
-      const traditional = monthLogs.filter(l => l.type === 'traditional' && (!l.action || l.action === 'smoke')).length;
-      const electronic = monthLogs.filter(l => l.type === 'electronic' && (!l.action || l.action === 'smoke')).length;
+      const traditional = monthLogs.filter(l => l.type === 'traditional' && (!l.action || l.action === 'smoke')).reduce((sum, l) => sum + (l.count || 1), 0);
+      const electronic = monthLogs.filter(l => l.type === 'electronic' && (!l.action || l.action === 'smoke')).reduce((sum, l) => sum + (l.count || 1), 0);
       const traditionalCost = monthLogs.filter(l => l.type === 'traditional').reduce((sum, log) => sum + log.cost, 0);
       const electronicCost = monthLogs.filter(l => l.type === 'electronic').reduce((sum, log) => sum + log.cost, 0);
       const cost = traditionalCost + electronicCost;
@@ -155,8 +160,8 @@ export function Stats({ logs, addSmoke, addPurchase, deleteLog, updateLog }: Sta
     return eachDayOfInterval({ start, end });
   }, [summaryMonth, viewMode]);
 
-  const totalTraditional = summaryLogs.filter(l => l.type === 'traditional' && (!l.action || l.action === 'smoke')).length;
-  const totalElectronic = summaryLogs.filter(l => l.type === 'electronic' && (!l.action || l.action === 'smoke')).length;
+  const totalTraditional = summaryLogs.filter(l => l.type === 'traditional' && (!l.action || l.action === 'smoke')).reduce((sum, l) => sum + (l.count || 1), 0);
+  const totalElectronic = summaryLogs.filter(l => l.type === 'electronic' && (!l.action || l.action === 'smoke')).reduce((sum, l) => sum + (l.count || 1), 0);
   const totalCost = summaryLogs.reduce((sum, log) => sum + log.cost, 0);
 
   const { tagStats, timeStats } = useMemo(() => {
@@ -171,15 +176,16 @@ export function Stats({ logs, addSmoke, addPurchase, deleteLog, updateLog }: Sta
     };
 
     smokeLogs.forEach(log => {
+      const count = log.count || 1;
       if (log.tag) {
-        tags[log.tag] = (tags[log.tag] || 0) + 1;
+        tags[log.tag] = (tags[log.tag] || 0) + count;
       }
       
       const hour = getKSTDate(log.timestamp).getHours();
-      if (hour >= 0 && hour < 6) times['새벽 (00~06)']++;
-      else if (hour >= 6 && hour < 12) times['오전 (06~12)']++;
-      else if (hour >= 12 && hour < 18) times['오후 (12~18)']++;
-      else times['저녁 (18~24)']++;
+      if (hour >= 0 && hour < 6) times['새벽 (00~06)'] += count;
+      else if (hour >= 6 && hour < 12) times['오전 (06~12)'] += count;
+      else if (hour >= 12 && hour < 18) times['오후 (12~18)'] += count;
+      else times['저녁 (18~24)'] += count;
     });
 
     const sortedTags = Object.entries(tags)
@@ -276,7 +282,7 @@ export function Stats({ logs, addSmoke, addPurchase, deleteLog, updateLog }: Sta
                     ))}
                   </Pie>
                   <Tooltip 
-                    formatter={(value: number) => [`${value}개비`, '']}
+                    formatter={(value: number) => [`${value}개`, '']}
                     contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
                   />
                   <Legend verticalAlign="bottom" height={36} iconType="circle" wrapperStyle={{ fontSize: '12px' }} />
@@ -295,7 +301,7 @@ export function Stats({ logs, addSmoke, addPurchase, deleteLog, updateLog }: Sta
                   <YAxis allowDecimals={false} axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#a1a1aa' }} />
                   <Tooltip 
                     cursor={{ fill: '#f4f4f5' }}
-                    formatter={(value: number) => [`${value}개비`, '흡연량']}
+                    formatter={(value: number) => [`${value}개`, '흡연량']}
                     contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
                   />
                   <Bar dataKey="value" name="흡연량" fill="#6366f1" radius={[4, 4, 0, 0]} />
@@ -336,7 +342,7 @@ export function Stats({ logs, addSmoke, addPurchase, deleteLog, updateLog }: Sta
                 <LineChart data={last7Days} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f4f4f5" />
                   <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#a1a1aa' }} dy={10} />
-                  <YAxis domain={[(dataMin: number) => Math.min(dataMin, 4500), (dataMax: number) => Math.max(dataMax, 70000)]} axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#a1a1aa' }} tickFormatter={(val) => val === 0 ? '0' : val.toLocaleString()} />
+                  <YAxis domain={[(dataMin: number) => Math.min(dataMin, 9000), (dataMax: number) => Math.max(dataMax, 20000)]} axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#a1a1aa' }} tickFormatter={(val) => val === 0 ? '0' : val.toLocaleString()} />
                   <Tooltip 
                     formatter={(value: number, name: string) => [`${value.toLocaleString()}원`, name]}
                     contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
@@ -381,7 +387,7 @@ export function Stats({ logs, addSmoke, addPurchase, deleteLog, updateLog }: Sta
                 <LineChart data={monthlyChartData} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f4f4f5" />
                   <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#a1a1aa' }} dy={10} />
-                  <YAxis domain={[(dataMin: number) => Math.min(dataMin, 27000), (dataMax: number) => Math.max(dataMax, 90000)]} axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#a1a1aa' }} tickFormatter={(val) => val === 0 ? '0' : val.toLocaleString()} />
+                  <YAxis domain={[(dataMin: number) => Math.min(dataMin, 14100), (dataMax: number) => Math.max(dataMax, 90000)]} axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#a1a1aa' }} tickFormatter={(val) => val === 0 ? '0' : val.toLocaleString()} />
                   <Tooltip 
                     formatter={(value: number, name: string) => [`${value.toLocaleString()}원`, name]}
                     contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
@@ -405,8 +411,8 @@ export function Stats({ logs, addSmoke, addPurchase, deleteLog, updateLog }: Sta
             <div className="grid grid-cols-7 gap-1">
               {calendarDays.map(day => {
                 const dayLogs = logs.filter(log => isSameDay(getKSTDate(log.timestamp), day));
-                const traditional = dayLogs.filter(l => l.type === 'traditional' && (!l.action || l.action === 'smoke')).length;
-                const electronic = dayLogs.filter(l => l.type === 'electronic' && (!l.action || l.action === 'smoke')).length;
+                const traditional = dayLogs.filter(l => l.type === 'traditional' && (!l.action || l.action === 'smoke')).reduce((sum, l) => sum + (l.count || 1), 0);
+                const electronic = dayLogs.filter(l => l.type === 'electronic' && (!l.action || l.action === 'smoke')).reduce((sum, l) => sum + (l.count || 1), 0);
                 const cost = dayLogs.reduce((sum, log) => sum + log.cost, 0);
                 const isCurrentMonth = isSameMonth(day, summaryMonth);
                 const isTodayKST = isSameDay(day, getKSTDate());
@@ -514,7 +520,7 @@ export function Stats({ logs, addSmoke, addPurchase, deleteLog, updateLog }: Sta
                     const isPurchase = log.action === 'purchase';
                     const isTraditional = log.type === 'traditional';
                     const title = isTraditional ? '말보루' : '테리아';
-                    const displayTitle = isPurchase ? `${title} 구입` : title;
+                    const displayTitle = isPurchase ? `${title} 지출` : title;
                     
                     return (
                       <div key={log.id} className="bg-white p-3 rounded-xl shadow-sm border border-zinc-100 flex items-center justify-between">
@@ -533,7 +539,7 @@ export function Stats({ logs, addSmoke, addPurchase, deleteLog, updateLog }: Sta
                             </div>
                             <div className="text-xs text-zinc-500">
                               {!isPurchase && format(getKSTDate(log.timestamp), 'HH:mm')}
-                              {isPurchase && '구입'}
+                              {isPurchase && '지출'}
                             </div>
                           </div>
                         </div>
@@ -576,7 +582,7 @@ export function Stats({ logs, addSmoke, addPurchase, deleteLog, updateLog }: Sta
                 className="flex-1 bg-zinc-800 hover:bg-zinc-900 text-white font-bold py-3 rounded-xl transition-colors flex items-center justify-center gap-2 text-sm shadow-sm"
               >
                 <CreditCard size={18} />
-                구입 기록 추가
+                지출 기록 추가
               </button>
             </div>
           </div>
@@ -590,8 +596,8 @@ export function Stats({ logs, addSmoke, addPurchase, deleteLog, updateLog }: Sta
             <div className="p-4 border-b border-zinc-100 flex justify-between items-center">
               <h3 className="font-bold text-zinc-800">
                 {format(selectedDate, 'M월 d일')} - {manualModal.editId 
-                  ? (manualAction === 'smoke' ? '흡연 기록 수정' : '구입 기록 수정') 
-                  : (manualAction === 'smoke' ? '흡연 기록 추가' : '구입 기록 추가')}
+                  ? (manualAction === 'smoke' ? '흡연 기록 수정' : '지출 기록 수정') 
+                  : (manualAction === 'smoke' ? '흡연 기록 추가' : '지출 기록 추가')}
               </h3>
               <button onClick={() => setManualModal({ isOpen: false, editId: null })} className="text-zinc-400 hover:text-zinc-600">
                 <X size={20} />
@@ -636,6 +642,29 @@ export function Stats({ logs, addSmoke, addPurchase, deleteLog, updateLog }: Sta
                 </div>
               </div>
 
+              <div>
+                <label className="block text-xs font-medium text-zinc-500 mb-1">{manualAction === 'smoke' ? '개수' : '갑'}</label>
+                <div className="flex items-center gap-3">
+                  <button 
+                    type="button"
+                    onClick={() => setManualCount(Math.max(1, manualCount - 1))}
+                    className="w-10 h-10 rounded-lg bg-zinc-100 flex items-center justify-center text-zinc-600 font-bold"
+                  >
+                    -
+                  </button>
+                  <div className="flex-1 text-center font-bold text-lg text-zinc-800">
+                    {manualCount}
+                  </div>
+                  <button 
+                    type="button"
+                    onClick={() => setManualCount(manualCount + 1)}
+                    className="w-10 h-10 rounded-lg bg-zinc-100 flex items-center justify-center text-zinc-600 font-bold"
+                  >
+                    +
+                  </button>
+                </div>
+              </div>
+
               {manualAction === 'smoke' && (
                 <div>
                   <label className="block text-xs font-medium text-zinc-500 mb-1">상황 태그 (선택)</label>
@@ -658,8 +687,8 @@ export function Stats({ logs, addSmoke, addPurchase, deleteLog, updateLog }: Sta
                 className={`w-full font-bold py-3 rounded-xl mt-2 transition-colors ${manualAction === 'smoke' ? 'bg-indigo-600 hover:bg-indigo-700 text-white' : 'bg-zinc-800 hover:bg-zinc-900 text-white'}`}
               >
                 {manualModal.editId 
-                  ? (manualAction === 'smoke' ? '흡연 기록 수정하기' : '구입 기록 수정하기') 
-                  : (manualAction === 'smoke' ? '흡연 기록 추가하기' : '구입 기록 추가하기')}
+                  ? (manualAction === 'smoke' ? '흡연 기록 수정하기' : '지출 기록 수정하기') 
+                  : (manualAction === 'smoke' ? '흡연 기록 추가하기' : '지출 기록 추가하기')}
               </button>
             </div>
           </div>

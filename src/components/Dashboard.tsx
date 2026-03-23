@@ -6,8 +6,8 @@ import { format } from 'date-fns';
 
 interface DashboardProps {
   logs: SmokeLog[];
-  addSmoke: (type: SmokeType, tag?: string, timestamp?: number) => void;
-  addPurchase: (type: SmokeType, timestamp?: number) => void;
+  addSmoke: (type: SmokeType, tag?: string, timestamp?: number, count?: number) => void;
+  addPurchase: (type: SmokeType, timestamp?: number, count?: number) => void;
   deleteLog: (id: string) => void;
   updateLog: (id: string, updates: Partial<SmokeLog>) => void;
 }
@@ -19,6 +19,7 @@ export function Dashboard({ logs, addSmoke, addPurchase, deleteLog, updateLog }:
   const [manualType, setManualType] = useState<SmokeType>('traditional');
   const [manualAction, setManualAction] = useState<'smoke' | 'purchase'>('smoke');
   const [manualTag, setManualTag] = useState('');
+  const [manualCount, setManualCount] = useState(1);
 
   const openManualModal = (editLog?: SmokeLog, defaultType: SmokeType = 'traditional', defaultAction: 'smoke' | 'purchase' = 'smoke') => {
     if (editLog) {
@@ -28,6 +29,7 @@ export function Dashboard({ logs, addSmoke, addPurchase, deleteLog, updateLog }:
       setManualType(editLog.type);
       setManualAction(editLog.action || 'smoke');
       setManualTag(editLog.tag || '');
+      setManualCount(editLog.count || 1);
       setManualModal({ isOpen: true, editId: editLog.id });
     } else {
       setManualDate(format(getKSTDate(), 'yyyy-MM-dd'));
@@ -35,6 +37,7 @@ export function Dashboard({ logs, addSmoke, addPurchase, deleteLog, updateLog }:
       setManualType(defaultType);
       setManualAction(defaultAction);
       setManualTag('');
+      setManualCount(1);
       setManualModal({ isOpen: true, editId: null });
     }
   };
@@ -48,22 +51,24 @@ export function Dashboard({ logs, addSmoke, addPurchase, deleteLog, updateLog }:
         action: manualAction,
         timestamp,
         tag: manualAction === 'smoke' ? (manualTag || undefined) : undefined,
+        count: manualCount,
       });
     } else {
       if (manualAction === 'smoke') {
-        addSmoke(manualType, manualTag || undefined, timestamp);
+        addSmoke(manualType, manualTag || undefined, timestamp, manualCount);
       } else {
-        addPurchase(manualType, timestamp);
+        addPurchase(manualType, timestamp, manualCount);
       }
     }
     setManualModal({ isOpen: false, editId: null });
     setManualTag('');
+    setManualCount(1);
   };
 
   const todaysLogs = logs.filter(log => isTodayKST(log.timestamp));
   
-  const traditionalCount = todaysLogs.filter(l => l.type === 'traditional' && (!l.action || l.action === 'smoke')).length;
-  const electronicCount = todaysLogs.filter(l => l.type === 'electronic' && (!l.action || l.action === 'smoke')).length;
+  const traditionalCount = todaysLogs.filter(l => l.type === 'traditional' && (!l.action || l.action === 'smoke')).reduce((sum, l) => sum + (l.count || 1), 0);
+  const electronicCount = todaysLogs.filter(l => l.type === 'electronic' && (!l.action || l.action === 'smoke')).reduce((sum, l) => sum + (l.count || 1), 0);
   const totalCost = todaysLogs.reduce((sum, log) => sum + log.cost, 0);
 
   const groupedLogs = Object.values(todaysLogs.reduce((acc, log) => {
@@ -82,7 +87,7 @@ export function Dashboard({ logs, addSmoke, addPurchase, deleteLog, updateLog }:
         logs: []
       };
     }
-    acc[key].count += 1;
+    acc[key].count += (log.count || 1);
     acc[key].cost += log.cost;
     acc[key].ids.push(log.id);
     acc[key].logs.push(log);
@@ -138,21 +143,21 @@ export function Dashboard({ logs, addSmoke, addPurchase, deleteLog, updateLog }:
           </button>
         </div>
         
-        <h3 className="text-sm font-bold text-zinc-500 px-1 pt-2">구입 기록</h3>
+        <h3 className="text-sm font-bold text-zinc-500 px-1 pt-2">지출 기록</h3>
         <div className="grid grid-cols-2 gap-4">
           <button
             onClick={() => openManualModal(undefined, 'traditional', 'purchase')}
             className="bg-white border-2 border-amber-200 hover:border-amber-300 active:scale-95 transition-all text-amber-600 p-4 rounded-2xl flex flex-col items-center justify-center gap-2 shadow-sm"
           >
             <CreditCard size={24} />
-            <span className="font-bold">말보루 구입</span>
+            <span className="font-bold">말보루</span>
           </button>
           <button
             onClick={() => openManualModal(undefined, 'electronic', 'purchase')}
             className="bg-white border-2 border-emerald-200 hover:border-emerald-300 active:scale-95 transition-all text-emerald-600 p-4 rounded-2xl flex flex-col items-center justify-center gap-2 shadow-sm"
           >
             <CreditCard size={24} />
-            <span className="font-bold">테리아 구입</span>
+            <span className="font-bold">테리아</span>
           </button>
         </div>
       </div>
@@ -170,7 +175,7 @@ export function Dashboard({ logs, addSmoke, addPurchase, deleteLog, updateLog }:
               const isPurchase = group.action === 'purchase';
               const isTraditional = group.type === 'traditional';
               const title = isTraditional ? '말보루' : '테리아';
-              const displayTitle = isPurchase ? `${title} 구입` : title;
+              const displayTitle = isPurchase ? `${title} 지출` : title;
               const unit = isPurchase ? '갑' : '개';
               
               return (
@@ -225,8 +230,8 @@ export function Dashboard({ logs, addSmoke, addPurchase, deleteLog, updateLog }:
             <div className="p-4 border-b border-zinc-100 flex justify-between items-center">
               <h3 className="font-bold text-zinc-800">
                 {manualModal.editId 
-                  ? (manualAction === 'smoke' ? '흡연 기록 수정' : '구입 기록 수정') 
-                  : (manualAction === 'smoke' ? '흡연 기록 추가' : '구입 기록 추가')}
+                  ? (manualAction === 'smoke' ? '흡연 기록 수정' : '지출 기록 수정') 
+                  : (manualAction === 'smoke' ? '흡연 기록 추가' : '지출 기록 추가')}
               </h3>
               <button onClick={() => setManualModal({ isOpen: false, editId: null })} className="text-zinc-400 hover:text-zinc-600">
                 <X size={20} />
@@ -284,6 +289,29 @@ export function Dashboard({ logs, addSmoke, addPurchase, deleteLog, updateLog }:
                 </div>
               </div>
 
+              <div>
+                <label className="block text-xs font-medium text-zinc-500 mb-1">{manualAction === 'smoke' ? '개수' : '갑'}</label>
+                <div className="flex items-center gap-3">
+                  <button 
+                    type="button"
+                    onClick={() => setManualCount(Math.max(1, manualCount - 1))}
+                    className="w-10 h-10 rounded-lg bg-zinc-100 flex items-center justify-center text-zinc-600 font-bold"
+                  >
+                    -
+                  </button>
+                  <div className="flex-1 text-center font-bold text-lg text-zinc-800">
+                    {manualCount}
+                  </div>
+                  <button 
+                    type="button"
+                    onClick={() => setManualCount(manualCount + 1)}
+                    className="w-10 h-10 rounded-lg bg-zinc-100 flex items-center justify-center text-zinc-600 font-bold"
+                  >
+                    +
+                  </button>
+                </div>
+              </div>
+
               {manualAction === 'smoke' && (
                 <div>
                   <label className="block text-xs font-medium text-zinc-500 mb-1">상황 태그 (선택)</label>
@@ -306,8 +334,8 @@ export function Dashboard({ logs, addSmoke, addPurchase, deleteLog, updateLog }:
                 className={`w-full font-bold py-3 rounded-xl mt-2 transition-colors ${manualAction === 'smoke' ? 'bg-indigo-600 hover:bg-indigo-700 text-white' : 'bg-zinc-800 hover:bg-zinc-900 text-white'}`}
               >
                 {manualModal.editId 
-                  ? (manualAction === 'smoke' ? '흡연 기록 수정하기' : '구입 기록 수정하기') 
-                  : (manualAction === 'smoke' ? '흡연 기록 추가하기' : '구입 기록 추가하기')}
+                  ? (manualAction === 'smoke' ? '흡연 기록 수정하기' : '지출 기록 수정하기') 
+                  : (manualAction === 'smoke' ? '흡연 기록 추가하기' : '지출 기록 추가하기')}
               </button>
             </div>
           </div>

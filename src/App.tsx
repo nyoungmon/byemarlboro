@@ -85,6 +85,7 @@ export default function App() {
           timestamp: data.timestamp,
           cost: data.cost,
           tag: data.tag,
+          count: data.count ?? 1,
         });
       });
       setLogs(newLogs);
@@ -182,7 +183,7 @@ export default function App() {
     return () => clearInterval(timer);
   }, []);
 
-  const addSmoke = async (type: SmokeType, tag?: string, timestamp?: number) => {
+  const addSmoke = async (type: SmokeType, tag?: string, timestamp?: number, count: number = 1) => {
     if (!user) return;
     try {
       const logRef = doc(collection(db, `users/${user.uid}/logs`));
@@ -192,6 +193,7 @@ export default function App() {
         action: 'smoke',
         timestamp: timestamp || Date.now(),
         cost: 0,
+        count: count,
       };
       if (tag) {
         newLog.tag = tag;
@@ -202,7 +204,7 @@ export default function App() {
     }
   };
 
-  const addPurchase = async (type: SmokeType, timestamp?: number) => {
+  const addPurchase = async (type: SmokeType, timestamp?: number, count: number = 1) => {
     if (!user) return;
     const cost = type === 'traditional' 
       ? settings.traditionalCostPerPack 
@@ -215,7 +217,8 @@ export default function App() {
         type,
         action: 'purchase',
         timestamp: timestamp || Date.now(),
-        cost,
+        cost: cost * count,
+        count: count,
       });
     } catch (error) {
       handleFirestoreError(error, OperationType.CREATE, `users/${user.uid}/logs`);
@@ -295,7 +298,7 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-zinc-50 flex flex-col max-w-md mx-auto shadow-xl relative">
+    <div className="h-screen bg-zinc-50 flex flex-col max-w-md mx-auto shadow-xl relative overflow-hidden">
       {isMigrating && (
         <div className="absolute inset-0 bg-white/80 backdrop-blur-sm z-50 flex flex-col items-center justify-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mb-4"></div>
@@ -322,13 +325,13 @@ export default function App() {
         )}
       </header>
 
-      <main className="flex-1 overflow-y-auto pb-20">
+      <main className="flex-1 overflow-y-auto">
         {activeTab === 'dashboard' && <Dashboard logs={logs} addSmoke={addSmoke} addPurchase={addPurchase} deleteLog={deleteLog} updateLog={updateLog} />}
         {activeTab === 'stats' && <Stats logs={logs} addSmoke={addSmoke} addPurchase={addPurchase} deleteLog={deleteLog} updateLog={updateLog} />}
         {activeTab === 'settings' && <SettingsView settings={settings} onUpdateSettings={updateSettings} />}
       </main>
 
-      <nav className="bg-white border-t border-zinc-100 flex justify-around p-3 absolute bottom-0 w-full">
+      <nav className="bg-white border-t border-zinc-100 flex justify-around p-3 sticky bottom-0 w-full">
         <button 
           onClick={() => setActiveTab('dashboard')}
           className={`flex flex-col items-center p-2 ${activeTab === 'dashboard' ? 'text-indigo-600' : 'text-zinc-400'}`}
