@@ -6,7 +6,7 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Responsive
 import { ChevronLeft, ChevronRight, Cigarette, BatteryCharging, Trash2, CreditCard, X, PlusCircle, Pencil } from 'lucide-react';
 import { getKSTDate } from '../utils';
 
-const COLORS = ['#6366f1', '#8b5cf6', '#3b82f6', '#0ea5e9', '#4f46e5', '#7c3aed', '#2563eb', '#1d4ed8', '#1e40af'];
+const COLORS = ['#6366f1', '#64748b', '#0ea5e9', '#7c3aed', '#06b6d4', '#4338ca', '#94a3b8', '#9333ea'];
 
 interface StatsProps {
   logs: SmokeLog[];
