@@ -8,6 +8,14 @@ import { getKSTDate } from '../utils';
 
 const COLORS = ['#6366f1', '#64748b', '#0ea5e9', '#7c3aed', '#06b6d4', '#4338ca', '#94a3b8', '#9333ea'];
 
+const TAG_COLORS: Record<string, string> = {
+  '식후땡': '#6366f1',
+  '기상 후': '#64748b',
+  '음주': '#0ea5e9',
+  '코 타임': '#f4b122',
+  '막코': '#ef4444',
+};
+
 interface StatsProps {
   logs: SmokeLog[];
   addSmoke: (type: SmokeType, tag?: string, timestamp?: number, count?: number) => void;
@@ -278,7 +286,7 @@ export function Stats({ logs, addSmoke, addPurchase, deleteLog, updateLog }: Sta
                     dataKey="value"
                   >
                     {tagStats.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                      <Cell key={`cell-${index}`} fill={TAG_COLORS[entry.name] || COLORS[index % COLORS.length]} />
                     ))}
                   </Pie>
                   <Tooltip 
@@ -669,7 +677,7 @@ export function Stats({ logs, addSmoke, addPurchase, deleteLog, updateLog }: Sta
                 <div>
                   <label className="block text-xs font-medium text-zinc-500 mb-1">상황 태그 (선택)</label>
                   <div className="flex flex-wrap gap-2">
-                    {['식후땡', '기상 후', '음주', '코 타임'].map(tag => (
+                    {['식후땡', '기상 후', '음주', '코 타임', '막코'].map(tag => (
                       <button
                         key={tag}
                         onClick={() => setManualTag(manualTag === tag ? '' : tag)}

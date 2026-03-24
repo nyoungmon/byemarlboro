@@ -316,7 +316,7 @@ export function Dashboard({ logs, addSmoke, addPurchase, deleteLog, updateLog }:
                 <div>
                   <label className="block text-xs font-medium text-zinc-500 mb-1">상황 태그 (선택)</label>
                   <div className="flex flex-wrap gap-2">
-                    {['식후땡', '기상 후', '음주', '코 타임'].map(tag => (
+                    {['식후땡', '기상 후', '음주', '코 타임', '막코'].map(tag => (
                       <button
                         key={tag}
                         onClick={() => setManualTag(manualTag === tag ? '' : tag)}
